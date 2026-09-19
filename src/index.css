@@ -1,0 +1,148 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 30 40% 98%;
+    --foreground: 335 30% 15%;
+    --card: 0 0% 100%;
+    --card-foreground: 335 30% 15%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 335 30% 15%;
+    --primary: 340 70% 55%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 340 30% 96%;
+    --secondary-foreground: 335 30% 25%;
+    --muted: 340 20% 95%;
+    --muted-foreground: 335 10% 45%;
+    --accent: 340 50% 92%;
+    --accent-foreground: 340 70% 40%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 340 20% 90%;
+    --input: 340 20% 90%;
+    --ring: 340 70% 55%;
+    --chart-1: 340 70% 55%;
+    --chart-2: 180 50% 45%;
+    --chart-3: 30 80% 60%;
+    --chart-4: 200 70% 55%;
+    --chart-5: 280 50% 60%;
+    --radius: 0.75rem;
+    --sidebar: 340 30% 97%;
+    --sidebar-foreground: 335 30% 20%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--accent));
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--primary));
+}
+
+/* Glassmorphism utility */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.glass-dark {
+  background: rgba(58, 40, 50, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Gradient text */
+.gradient-text {
+  background: linear-gradient(135deg, hsl(340 70% 55%), hsl(330 60% 65%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Smooth shadow */
+.shadow-soft {
+  box-shadow: 0 2px 8px rgba(200, 80, 120, 0.06), 0 1px 3px rgba(200, 80, 120, 0.04);
+}
+
+.shadow-soft-lg {
+  box-shadow: 0 8px 30px rgba(200, 80, 120, 0.08), 0 2px 8px rgba(200, 80, 120, 0.04);
+}
+
+/* Calendar drag styles */
+.dragging-booking {
+  opacity: 0.5;
+  cursor: grabbing !important;
+}
+
+.calendar-slot {
+  transition: background-color 0.15s ease;
+}
+
+.calendar-slot-drag-over {
+  background-color: hsl(var(--accent)) !important;
+}
+
+/* Status badge colors */
+.status-pending { background-color: hsl(45 90% 95%); color: hsl(35 80% 40%); }
+.status-confirmed { background-color: hsl(200 80% 92%); color: hsl(200 70% 40%); }
+.status-arrived { background-color: hsl(280 60% 92%); color: hsl(280 50% 40%); }
+.status-in-progress { background-color: hsl(260 60% 90%); color: hsl(260 50% 40%); }
+.status-completed { background-color: hsl(140 60% 90%); color: hsl(140 50% 35%); }
+.status-cancelled { background-color: hsl(0 70% 92%); color: hsl(0 70% 45%); }
+.status-no-show { background-color: hsl(0 50% 90%); color: hsl(0 50% 40%); }
+
+/* Payment status colors */
+.payment-unpaid { background-color: hsl(0 0% 90%); color: hsl(0 0% 40%); }
+.payment-dp { background-color: hsl(45 90% 90%); color: hsl(35 80% 35%); }
+.payment-paid { background-color: hsl(140 60% 88%); color: hsl(140 50% 30%); }
+.payment-refunded { background-color: hsl(200 60% 90%); color: hsl(200 50% 40%); }
+
+/* Hide scrollbar for specific elements */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Shimmer loading */
+@keyframes shimmer {
+  0% { background-position: -1000px 0; }
+  100% { background-position: 1000px 0; }
+}
+.shimmer {
+  animation: shimmer 2s infinite linear;
+  background: linear-gradient(90deg, hsl(var(--muted)) 0%, hsl(var(--accent)) 50%, hsl(var(--muted)) 100%);
+  background-size: 2000px 100%;
+}

@@ -1,0 +1,2 @@
+[functions.create-public-booking]
+verify_jwt = false
