@@ -356,7 +356,31 @@ function BookingDetail({
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState(booking.notes ?? "");
 
-  const waMessage = `Halo ${booking.customer?.name}, kami ingin mengonfirmasi booking Anda pada ${formatDate(booking.booking_date)} pukul ${formatTime(booking.start_time)} untuk layanan ${booking.service?.name}.`;
+  const waMessage = [
+    `Halo Kak ${booking.customer?.name} 🤍`,
+    ``,
+    `Kami dari *Lalash* ingin mengonfirmasi jadwal appointment Kakak dengan detail berikut:`,
+    ``,
+    `✨ *Service*`,
+    `${booking.service?.name}`,
+    ``,
+    `📅 *Date*`,
+    `${formatDate(booking.booking_date)}`,
+    ``,
+    `⏰ *Time*`,
+    `${formatTime(booking.start_time)}`,
+    ``,
+    `Mohon konfirmasi kembali apakah jadwal tersebut sudah sesuai dengan waktu yang Kakak inginkan.`,
+    ``,
+    `Jika sudah sesuai, Kakak dapat membalas pesan ini dengan *“CONFIRM”* agar booking dapat kami catat sebagai terkonfirmasi.`,
+    ``,
+    `Apabila Kakak ingin melakukan perubahan jadwal atau memiliki pertanyaan, jangan ragu untuk menghubungi kami. Kami dengan senang hati akan membantu. 😊`,
+    ``,
+    `Terima kasih telah mempercayakan beauty appointment Kakak kepada *Lalash*. 🤍`,
+    ``,
+    `Sampai bertemu di *Lalash* ✨`,
+  ].join("\n");
+
   const waUrl = booking.customer?.phone
     ? generateWhatsAppUrl(booking.customer.phone, waMessage)
     : "#";
@@ -369,6 +393,9 @@ function BookingDetail({
     if (error) toast.error("Failed to save notes");
     else toast.success("Notes saved");
   };
+
+  console.log(waMessage);
+  console.log(waUrl);
 
   return (
     <div className="space-y-6 mt-6">
@@ -392,12 +419,24 @@ function BookingDetail({
             {formatTime(booking.start_time)} - {formatTime(booking.end_time)}
           </div>
         </div>
-        <a href={waUrl} target="_blank" rel="noopener noreferrer">
-          <Button variant="outline" size="sm" className="w-full gap-2">
-            <MessageCircle className="h-4 w-4" />
-            Contact via WhatsApp
-          </Button>
-        </a>
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full gap-2"
+          onClick={() => {
+            if (!booking.customer?.phone) {
+              toast.error("Customer phone number is not available");
+              return;
+            }
+
+            const url = generateWhatsAppUrl(booking.customer.phone, waMessage);
+
+            window.open(url, "_blank", "noopener,noreferrer");
+          }}
+        >
+          <MessageCircle className="h-4 w-4" />
+          Contact via WhatsApp
+        </Button>
       </div>
 
       {/* Service Info */}

@@ -20,6 +20,7 @@ import {
   Receipt,
   Scissors,
   LayoutTemplate,
+  Clock,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { useNotifications } from '@/lib/hooks';
@@ -38,6 +39,7 @@ import { QuickBookingModal } from '@/components/booking/quick-booking-modal';
 import { AddCustomerModal } from '@/components/customers/add-customer-modal';
 import { AddExpenseModal } from '@/components/finance/add-expense-modal';
 import { toast } from 'sonner';
+import path from 'path';
 
 const navItems = [
   { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -46,6 +48,7 @@ const navItems = [
   { path: '/customers', label: 'Customers', icon: Users },
   { path: '/finance', label: 'Finance', icon: Wallet },
   { path: '/reports', label: 'Reports', icon: BarChart3 },
+  {path: '/available-hours', label: 'Available Hours', icon: Clock},
   { path: '/services', label: 'Services', icon: Scissors },
   { path: '/cms', label: 'Landing Page', icon: LayoutTemplate },
   { path: '/settings', label: 'Settings', icon: Settings },

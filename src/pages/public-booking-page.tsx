@@ -1,5 +1,15 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
+
+import {
+  motion,
+  AnimatePresence,
+} from "framer-motion";
+
 import {
   Sparkles,
   Calendar,
@@ -14,59 +24,392 @@ import {
   Instagram,
   MapPin,
   Scissors,
-} from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Calendar as CalendarPicker } from '@/components/ui/calendar';
-import { cn, formatCurrency, formatTime, minutesToTime, timeToMinutes } from '@/lib/utils';
-import { calculateAvailableSlots } from '@/lib/slots';
-import type { Service, BusinessHour, BlockedDate, Settings } from '@/lib/types';
-import { toast } from 'sonner';
+  Printer,
+  Volume2,
+} from "lucide-react";
 
-const steps = ['Service', 'Date', 'Time', 'Details', 'Done'];
+import { supabase } from "@/lib/supabase";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+
+import {
+  Calendar as CalendarPicker,
+} from "@/components/ui/calendar";
+
+import {
+  cn,
+  formatCurrency,
+  formatTime,
+} from "@/lib/utils";
+
+import {
+  calculateAvailableSlots,
+} from "@/lib/slots";
+
+import type {
+  Service,
+  BusinessHour,
+  BlockedDate,
+  Settings,
+} from "@/lib/types";
+
+import { toast } from "sonner";
+
+const steps = [
+  "Service",
+  "Date",
+  "Time",
+  "Details",
+  "Done",
+];
+
+const DAYS_SHORT: Record<number, string> = {
+  0: "Sun",
+  1: "Mon",
+  2: "Tue",
+  3: "Wed",
+  4: "Thu",
+  5: "Fri",
+  6: "Sat",
+};
+
+const PRINT_DURATION = 6000;
+
+function toLocalDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
+
+interface ReceiptPrinterProps {
+  printing: boolean;
+  settings: Settings | null;
+  selectedService: Service | null;
+  selectedDate: Date | undefined;
+  selectedSlot: string;
+  name: string;
+}
+
+function ReceiptPrinter({
+  printing,
+  settings,
+  selectedService,
+  selectedDate,
+  selectedSlot,
+  name,
+}: ReceiptPrinterProps) {
+  return (
+    <div className="flex flex-col items-center">
+      {/* Printer status */}
+      <AnimatePresence mode="wait">
+        {printing ? (
+          <motion.div
+            key="printing-status"
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-5 flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <motion.div
+              animate={{ rotate: [0, -8, 8, -8, 0] }}
+              transition={{
+                duration: 0.25,
+                repeat: Infinity,
+                repeatDelay: 0.15,
+              }}
+            >
+              <Printer className="h-4 w-4" />
+            </motion.div>
+
+            <span>Printing your booking receipt...</span>
+
+            <Volume2 className="h-4 w-4 text-primary animate-pulse" />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="completed-status"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mb-5 flex items-center gap-2 text-sm text-green-600 font-medium"
+          >
+            <Check className="h-4 w-4" />
+            Receipt printed successfully
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* PRINTER CONTAINER */}
+      <div className="relative flex flex-col items-center w-full max-w-[340px]">
+        {/* ==================== PRINTER BODY (TOP) ==================== */}
+        <div className="relative z-20 w-[300px]">
+          {/* Top casing */}
+          <div className="relative h-[75px] rounded-t-[24px] border border-zinc-300 bg-gradient-to-b from-zinc-100 to-zinc-200 shadow-md">
+            <div className="absolute left-5 right-5 top-2.5 h-1.5 rounded-full bg-white/80" />
+
+            <div className="absolute bottom-3 left-5 flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary">
+                <Sparkles className="h-3 w-3 text-white" />
+              </div>
+              <span className="text-xs font-semibold text-zinc-600">
+                {settings?.business_name ?? "LashFlow"}
+              </span>
+            </div>
+
+            <motion.div
+              animate={{
+                opacity: printing ? [0.35, 1, 0.35] : 1,
+              }}
+              transition={{
+                duration: 0.8,
+                repeat: printing ? Infinity : 0,
+              }}
+              className="absolute bottom-4 right-5 flex items-center gap-1.5"
+            >
+              <div className="h-2 w-2 rounded-full bg-green-500" />
+              <span className="text-[9px] uppercase tracking-wider text-zinc-500 font-medium">
+                {printing ? "Printing" : "Ready"}
+              </span>
+            </motion.div>
+          </div>
+
+          {/* Slot Output Area */}
+          <div className="relative h-[30px] border-x border-b border-zinc-300 bg-gradient-to-b from-zinc-200 to-zinc-300 rounded-b-xl shadow-md flex items-center justify-center">
+            <div className="relative w-[260px] h-[10px] rounded-full bg-zinc-900 shadow-inner overflow-hidden">
+              <motion.div
+                animate={
+                  printing
+                    ? { x: [-10, 10, -5, 8, 0] }
+                    : { x: 0 }
+                }
+                transition={{
+                  duration: 0.2,
+                  repeat: printing ? Infinity : 0,
+                }}
+                className="h-full w-full bg-zinc-800"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* ==================== PAPER ANIMATION AREA ==================== */}
+        <div className="relative z-10 -mt-2 w-[270px] overflow-hidden pt-2 pb-6 flex flex-col items-center">
+          <motion.div
+            initial={{ y: "-100%" }}
+            animate={{ y: 0 }}
+            transition={{
+              duration: PRINT_DURATION / 1000,
+              ease: "linear",
+            }}
+            className="w-full"
+          >
+            <div className="relative border-x border-b border-zinc-200 bg-white shadow-lg">
+              {/* Receipt Header */}
+              <div className="border-b border-dashed border-zinc-300 px-5 pb-4 pt-5 text-center">
+                <div className="flex items-center justify-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  <span className="font-serif text-base font-bold">
+                    {settings?.business_name ?? "LashFlow Studio"}
+                  </span>
+                </div>
+                <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
+                  Booking Confirmation
+                </p>
+              </div>
+
+              {/* Receipt Content */}
+              <div className="space-y-3 px-5 py-4">
+                <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
+                  <span className="text-muted-foreground">Service</span>
+                  <span className="text-right font-medium">{selectedService?.name}</span>
+                </div>
+
+                <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
+                  <span className="text-muted-foreground">Date</span>
+                  <span className="text-right font-medium">
+                    {selectedDate?.toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                      year: "numeric",
+                    })}
+                  </span>
+                </div>
+
+                <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
+                  <span className="text-muted-foreground">Time</span>
+                  <span className="font-medium">{formatTime(selectedSlot)}</span>
+                </div>
+
+                <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
+                  <span className="text-muted-foreground">Duration</span>
+                  <span className="font-medium">{selectedService?.duration_minutes} min</span>
+                </div>
+
+                <div className="flex justify-between gap-4 pb-1 text-xs">
+                  <span className="text-muted-foreground">Customer</span>
+                  <span className="text-right font-medium">{name}</span>
+                </div>
+
+                <div className="flex items-center justify-between border-t-2 border-dashed border-zinc-300 pt-3">
+                  <span className="text-xs font-semibold">Estimated Price</span>
+                  <span className="font-serif text-base font-bold text-primary">
+                    {formatCurrency(selectedService?.price)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Stamp */}
+              <motion.div
+                initial={{ opacity: 0, scale: 0.4, rotate: -15 }}
+                animate={{
+                  opacity: printing ? 0 : 1,
+                  scale: printing ? 0.4 : 1,
+                  rotate: -8,
+                }}
+                transition={{ duration: 0.4, type: "spring" }}
+                className="absolute right-3 top-[135px] rounded-lg border-2 border-amber-400 bg-amber-50/90 px-2.5 py-1 shadow-sm"
+              >
+                <span className="text-[9px] font-bold tracking-wider text-amber-600">
+                  PENDING
+                </span>
+              </motion.div>
+
+              {/* Barcode */}
+              <div className="px-5 pb-4 pt-2">
+                <div className="flex h-8 items-end justify-center gap-[2px] opacity-70">
+                  {Array.from({ length: 32 }).map((_, index) => (
+                    <div
+                      key={index}
+                      className="bg-zinc-800"
+                      style={{
+                        width: index % 4 === 0 ? "3px" : "1px",
+                        height:
+                          index % 3 === 0
+                            ? "30px"
+                            : index % 2 === 0
+                              ? "22px"
+                              : "26px",
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="mt-2 text-center text-[8px] tracking-[0.35em] text-muted-foreground">
+                  THANK YOU
+                </p>
+              </div>
+
+              {/* Zigzag bottom edge */}
+              <div
+                className="h-3 w-full"
+                style={{
+                  backgroundImage:
+                    "linear-gradient(135deg, transparent 50%, white 50%), linear-gradient(45deg, transparent 50%, white 50%)",
+                  backgroundSize: "12px 12px",
+                  backgroundPosition: "0 0, 6px 0",
+                }}
+              />
+            </div>
+          </motion.div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export function PublicBookingPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [settings, setSettings] = useState<Settings | null>(null);
-  const [loading, setLoading] = useState(true);
 
+  const [loading, setLoading] = useState(true);
   const [step, setStep] = useState(0);
+
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [existingBookings, setExistingBookings] = useState<{ start_time: string; end_time: string; status: string }[]>([]);
+  const [selectedSlot, setSelectedSlot] = useState("");
 
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
-  const [notes, setNotes] = useState('');
+  const [existingBookings, setExistingBookings] = useState<
+    { start_time: string; end_time: string; status: string }[]
+  >([]);
+
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
+  const [notes, setNotes] = useState("");
+
   const [submitting, setSubmitting] = useState(false);
   const [completed, setCompleted] = useState(false);
+  const [printing, setPrinting] = useState(false);
+
+  const printerAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  /*
+   * Corrected Sound path: thermal-print.mp3
+   */
+  useEffect(() => {
+    const audio = new Audio("/sounds/thermal-print.mp3");
+
+    audio.preload = "auto";
+    audio.volume = 0.65;
+
+    printerAudioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+      printerAudioRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!printing) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setPrinting(false);
+      if (printerAudioRef.current) {
+        printerAudioRef.current.pause();
+        printerAudioRef.current.currentTime = 0;
+      }
+    }, PRINT_DURATION);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [printing]);
 
   useEffect(() => {
     fetchPublicData();
   }, []);
 
   const fetchPublicData = async () => {
-    const [s, bh, bd, settingsRes] = await Promise.all([
-      supabase.from('services').select('*').eq('active', true).order('name'),
-      supabase.from('business_hours').select('*').order('day_of_week'),
-      supabase.from('blocked_dates').select('*'),
-      supabase.from('settings').select('*').maybeSingle(),
+    const [
+      servicesResponse,
+      businessHoursResponse,
+      blockedDatesResponse,
+      settingsResponse,
+    ] = await Promise.all([
+      supabase.from("services").select("*").eq("active", true).order("name"),
+      supabase.from("business_hours").select("*").order("day_of_week"),
+      supabase.from("blocked_dates").select("*"),
+      supabase.from("settings").select("*").maybeSingle(),
     ]);
-    setServices(s.data ?? []);
-    setBusinessHours(bh.data ?? []);
-    setBlockedDates(bd.data ?? []);
-    setSettings(settingsRes.data);
+
+    setServices(servicesResponse.data ?? []);
+    setBusinessHours(businessHoursResponse.data ?? []);
+    setBlockedDates(blockedDatesResponse.data ?? []);
+    setSettings(settingsResponse.data);
+
     setLoading(false);
   };
 
-  // Fetch existing bookings when date changes
   useEffect(() => {
     if (selectedDate) {
       fetchBookingsForDate(selectedDate);
@@ -74,168 +417,282 @@ export function PublicBookingPage() {
   }, [selectedDate]);
 
   const fetchBookingsForDate = async (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+    const dateString = toLocalDateString(date);
+
     const { data } = await supabase
-      .from('public_booking_slots')
-      .select('start_time, end_time, status')
-      .eq('booking_date', dateStr);
+      .from("public_booking_slots")
+      .select("start_time, end_time, status")
+      .eq("booking_date", dateString);
+
     setExistingBookings(data ?? []);
   };
 
   const availableSlots = useMemo(() => {
-    if (!selectedService || !selectedDate) return [];
+    if (!selectedService || !selectedDate) {
+      return [];
+    }
+
     return calculateAvailableSlots(
       selectedDate,
       selectedService.duration_minutes,
       businessHours,
       blockedDates,
       existingBookings as never,
-      settings?.min_booking_notice_hours ?? 2,
+      settings?.min_booking_notice_hours ?? 2
     );
-  }, [selectedService, selectedDate, businessHours, blockedDates, existingBookings, settings]);
+  }, [
+    selectedService,
+    selectedDate,
+    businessHours,
+    blockedDates,
+    existingBookings,
+    settings,
+  ]);
 
   const maxDate = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + (settings?.max_booking_days_ahead ?? 30));
-    return d;
+    const date = new Date();
+    date.setDate(date.getDate() + (settings?.max_booking_days_ahead ?? 30));
+    return date;
   }, [settings]);
 
-  const handleNext = () => {
-    if (step === 0 && !selectedService) return;
-    if (step === 1 && !selectedDate) return;
-    if (step === 2 && !selectedSlot) return;
-    setStep((s) => Math.min(s + 1, 4));
+  const stopPrinterSound = () => {
+    if (printerAudioRef.current) {
+      printerAudioRef.current.pause();
+      printerAudioRef.current.currentTime = 0;
+    }
   };
 
-  const handleBack = () => setStep((s) => Math.max(s - 1, 0));
+  const playPrinterSound = () => {
+    const audio = printerAudioRef.current;
+    if (!audio) return;
+
+    audio.pause();
+    audio.currentTime = 0;
+    audio.volume = 0.65;
+
+    audio.play().catch((error) => {
+      console.error("Printer sound failed:", error);
+    });
+  };
+
+  const handleNext = () => {
+    if (step === 0 && !selectedService) {
+      toast.error("Please choose a service");
+      return;
+    }
+
+    if (step === 1 && !selectedDate) {
+      toast.error("Please choose a date");
+      return;
+    }
+
+    if (step === 2 && !selectedSlot) {
+      toast.error("Please choose a time");
+      return;
+    }
+
+    setStep((currentStep) => Math.min(currentStep + 1, 4));
+  };
+
+  const handleBack = () => {
+    setStep((currentStep) => Math.max(currentStep - 1, 0));
+  };
 
   const handleSubmit = async () => {
-    if (!selectedService || !selectedDate || !selectedSlot || !name || !phone) {
-      toast.error('Please fill in all required fields');
+    if (
+      !selectedService ||
+      !selectedDate ||
+      !selectedSlot ||
+      !name.trim() ||
+      !phone.trim()
+    ) {
+      toast.error("Please fill in all required fields");
       return;
     }
 
     setSubmitting(true);
 
-    const response = await fetch(
-      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-public-booking`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        },
-        body: JSON.stringify({
-          customer_name: name,
-          customer_phone: phone,
-          customer_email: email || undefined,
-          service_id: selectedService.id,
-          booking_date: selectedDate.toISOString().split('T')[0],
-          start_time: selectedSlot,
-          notes: notes || undefined,
-        }),
-      },
-    );
+    // Trigger sound instantly on user click gesture
+    playPrinterSound();
 
-    const result = await response.json();
+    const payload = {
+      customer_name: name.trim(),
+      customer_phone: phone.trim(),
+      customer_email: email.trim() || undefined,
+      service_id: selectedService.id,
+      booking_date: toLocalDateString(selectedDate),
+      start_time: selectedSlot,
+      notes: notes.trim() || undefined,
+    };
 
-    setSubmitting(false);
+    try {
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/create-public-booking`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
 
-    if (!response.ok || result.error) {
-      if (result.error?.includes('just booked') || result.error?.includes('slot')) {
-        toast.error('Sorry, this slot was just booked. Please choose another available time.');
+      const responseText = await response.text();
+      let result: { error?: string; message?: string } = {};
+
+      try {
+        result = JSON.parse(responseText);
+      } catch {
+        // Ignore
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          result.error ||
+            result.message ||
+            `Request failed with status ${response.status}`
+        );
+      }
+
+      setCompleted(true);
+      setPrinting(true);
+      setStep(4);
+    } catch (error) {
+      stopPrinterSound();
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Failed to submit booking. Please try again.";
+
+      if (
+        message.toLowerCase().includes("just booked") ||
+        message.toLowerCase().includes("slot")
+      ) {
+        toast.error(
+          "Sorry, this slot was just booked. Please choose another available time."
+        );
         setStep(2);
-        setSelectedSlot('');
+        setSelectedSlot("");
         if (selectedDate) fetchBookingsForDate(selectedDate);
       } else {
-        toast.error(result.error || 'Failed to submit booking. Please try again.');
+        toast.error(message);
       }
-    } else {
-      setCompleted(true);
-      setStep(4);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  const handleBookAnother = () => {
+    stopPrinterSound();
+
+    setCompleted(false);
+    setPrinting(false);
+    setStep(0);
+
+    setSelectedService(null);
+    setSelectedDate(undefined);
+    setSelectedSlot("");
+
+    setName("");
+    setPhone("");
+    setEmail("");
+    setNotes("");
+
+    setExistingBookings([]);
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-rose-50 via-pink-50/50 to-amber-50">
-        <div className="h-8 w-8 rounded-full border-4 border-primary border-t-transparent animate-spin" />
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-rose-50 via-pink-50/50 to-amber-50">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 via-pink-50/30 to-amber-50/20">
-      {/* Header */}
-      <header className="border-b border-rose-100/50 bg-white/60 backdrop-blur-sm sticky top-0 z-30">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+      <header className="sticky top-0 z-30 border-b border-rose-100/50 bg-white/60 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-4 py-4">
           <div className="flex items-center gap-3">
             {settings?.logo_url ? (
-              <img src={settings.logo_url} alt="logo" className="h-10 w-10 rounded-xl object-cover" />
+              <img
+                src={settings.logo_url}
+                alt="Logo"
+                className="h-10 w-10 rounded-xl object-cover"
+              />
             ) : (
               <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary shadow-soft">
                 <Sparkles className="h-5 w-5 text-white" />
               </div>
             )}
-            <span className="text-lg font-serif font-bold">
-              {settings?.business_name ?? 'LashFlow Studio'}
+
+            <span className="font-serif text-lg font-bold">
+              {settings?.business_name ?? "LashFlow Studio"}
             </span>
           </div>
         </div>
       </header>
 
-      {/* Hero */}
       {!completed && (
-        <section className="max-w-3xl mx-auto px-4 pt-12 pb-8 text-center">
+        <section className="mx-auto max-w-3xl px-4 pb-8 pt-12 text-center">
           <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl md:text-4xl font-serif font-bold text-foreground"
+            className="font-serif text-3xl font-bold text-foreground md:text-4xl"
           >
             Book Your Lash Appointment
           </motion.h1>
+
           <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0.1 }}
-            className="mt-3 text-base text-muted-foreground max-w-lg mx-auto"
+            transition={{ delay: 0.1 }}
+            className="mx-auto mt-3 max-w-lg text-base text-muted-foreground"
           >
             Choose your favorite lash service and find an available time that works for you.
           </motion.p>
         </section>
       )}
 
-      {/* Progress Indicator */}
       {!completed && (
-        <div className="max-w-3xl mx-auto px-4 mb-8">
+        <div className="mx-auto mb-8 max-w-3xl px-4">
           <div className="flex items-center justify-between">
-            {steps.slice(0, 4).map((s, i) => (
-              <div key={s} className="flex items-center flex-1">
+            {steps.slice(0, 4).map((stepName, index) => (
+              <div key={stepName} className="flex flex-1 items-center">
                 <div className="flex flex-col items-center">
                   <div
                     className={cn(
-                      'flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-all',
-                      i < step && 'bg-primary text-primary-foreground',
-                      i === step && 'bg-primary text-primary-foreground ring-4 ring-primary/20',
-                      i > step && 'bg-muted text-muted-foreground',
+                      "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-all",
+                      index < step && "bg-primary text-primary-foreground",
+                      index === step &&
+                        "bg-primary text-primary-foreground ring-4 ring-primary/20",
+                      index > step && "bg-muted text-muted-foreground"
                     )}
                   >
-                    {i < step ? <Check className="h-4 w-4" /> : i + 1}
+                    {index < step ? <Check className="h-4 w-4" /> : index + 1}
                   </div>
-                  <span className={cn(
-                    'mt-1.5 text-xs',
-                    i <= step ? 'text-foreground font-medium' : 'text-muted-foreground',
-                  )}>
-                    {s}
+
+                  <span
+                    className={cn(
+                      "mt-1.5 text-xs",
+                      index <= step
+                        ? "font-medium text-foreground"
+                        : "text-muted-foreground"
+                    )}
+                  >
+                    {stepName}
                   </span>
                 </div>
-                {i < 3 && (
-                  <div className={cn(
-                    'flex-1 h-0.5 mx-2 -mt-5 transition-colors',
-                    i < step ? 'bg-primary' : 'bg-border',
-                  )} />
+
+                {index < 3 && (
+                  <div
+                    className={cn(
+                      "mx-2 mt-[-20px] h-0.5 flex-1 transition-colors",
+                      index < step ? "bg-primary" : "bg-border"
+                    )}
+                  />
                 )}
               </div>
             ))}
@@ -243,172 +700,65 @@ export function PublicBookingPage() {
         </div>
       )}
 
-      {/* Main Content */}
-      <main className="max-w-3xl mx-auto px-4 pb-16">
+      <main className="mx-auto max-w-3xl px-4 pb-16">
         <AnimatePresence mode="wait">
           {completed ? (
             <motion.div
-              key="done"
+              key="completed"
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, ease: 'easeOut' }}
-              className="relative"
+              className="relative rounded-3xl border border-rose-100 bg-white p-5 shadow-soft md:p-8"
             >
-              {/* Success checkmark burst */}
-              <motion.div
-                initial={{ scale: 0, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                transition={{ delay: 0.1, type: 'spring', stiffness: 200 }}
-                className="flex h-20 w-20 mx-auto items-center justify-center rounded-full bg-green-100 relative"
-              >
+              <div className="mb-7 text-center">
                 <motion.div
                   initial={{ scale: 0 }}
-                  animate={{ scale: 1.8 }}
-                  transition={{ delay: 0.15, duration: 0.4 }}
-                  className="absolute inset-0 rounded-full bg-green-200/50"
-                  style={{ originX: 0.5, originY: 0.5 }}
-                />
-                <motion.div
-                  initial={{ pathLength: 0, opacity: 0 }}
-                  animate={{ pathLength: 1, opacity: 1 }}
-                  transition={{ delay: 0.3, duration: 0.4, ease: 'easeOut' }}
+                  animate={{ scale: 1 }}
+                  transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+                  className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-green-100"
                 >
-                  <Check className="h-10 w-10 text-green-600 relative z-10" />
+                  <Check className="h-8 w-8 text-green-600" />
                 </motion.div>
-              </motion.div>
 
-              <motion.h2
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4 }}
-                className="mt-6 text-2xl font-serif font-bold text-center"
-              >
-                Booking Request Received
-              </motion.h2>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.5 }}
-                className="mt-2 text-sm text-muted-foreground text-center"
-              >
-                We'll confirm your appointment via WhatsApp shortly.
-              </motion.p>
+                <h2 className="mt-4 font-serif text-2xl font-bold">
+                  Booking Request Received
+                </h2>
 
-              {/* Receipt */}
-              <motion.div
-                initial={{ opacity: 0, y: 20, height: 0 }}
-                animate={{ opacity: 1, y: 0, height: 'auto' }}
-                transition={{ delay: 0.6, duration: 0.5, ease: 'easeOut' }}
-                className="mt-6 relative max-w-sm mx-auto"
-              >
-                {/* Receipt paper with zigzag bottom */}
-                <div className="relative bg-white border border-rose-100 rounded-t-2xl shadow-soft-lg overflow-hidden">
-                  {/* Receipt header */}
-                  <div className="bg-gradient-to-r from-rose-50 to-pink-50 px-6 py-4 text-center border-b border-dashed border-rose-200">
-                    <div className="flex items-center justify-center gap-2 mb-1">
-                      <Sparkles className="h-4 w-4 text-primary" />
-                      <span className="font-serif font-bold text-lg">
-                        {settings?.business_name ?? 'LashFlow Studio'}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground">Booking Confirmation</p>
-                  </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  We'll confirm your appointment via WhatsApp shortly.
+                </p>
+              </div>
 
-                  {/* Receipt body */}
-                  <div className="px-6 py-4 space-y-3">
-                    <div className="flex justify-between text-sm border-b border-dashed border-border pb-2">
-                      <span className="text-muted-foreground">Service</span>
-                      <span className="font-medium">{selectedService?.name}</span>
-                    </div>
-                    <div className="flex justify-between text-sm border-b border-dashed border-border pb-2">
-                      <span className="text-muted-foreground">Date</span>
-                      <span className="font-medium text-right">
-                        {selectedDate?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                      </span>
-                    </div>
-                    <div className="flex justify-between text-sm border-b border-dashed border-border pb-2">
-                      <span className="text-muted-foreground">Time</span>
-                      <span className="font-medium">{formatTime(selectedSlot)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm border-b border-dashed border-border pb-2">
-                      <span className="text-muted-foreground">Duration</span>
-                      <span className="font-medium">{selectedService?.duration_minutes} minutes</span>
-                    </div>
-                    <div className="flex justify-between text-sm pb-2">
-                      <span className="text-muted-foreground">Customer</span>
-                      <span className="font-medium">{name}</span>
-                    </div>
+              <ReceiptPrinter
+                printing={printing}
+                settings={settings}
+                selectedService={selectedService}
+                selectedDate={selectedDate}
+                selectedSlot={selectedSlot}
+                name={name}
+              />
 
-                    {/* Total */}
-                    <div className="flex justify-between items-center pt-3 border-t-2 border-dashed border-border">
-                      <span className="text-sm font-semibold">Estimated Price</span>
-                      <motion.span
-                        initial={{ opacity: 0, x: 10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.8 }}
-                        className="text-xl font-bold font-serif text-primary"
-                      >
-                        {formatCurrency(selectedService?.price)}
-                      </motion.span>
-                    </div>
-                  </div>
-
-                  {/* Status stamp */}
+              <AnimatePresence>
+                {!printing && (
                   <motion.div
-                    initial={{ opacity: 0, scale: 0.5, rotate: -15 }}
-                    animate={{ opacity: 1, scale: 1, rotate: -8 }}
-                    transition={{ delay: 1, type: 'spring', stiffness: 150 }}
-                    className="absolute top-20 right-4 border-2 border-amber-400 rounded-lg px-3 py-1 bg-amber-50/80"
+                    initial={{ opacity: 0, y: 15 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5 }}
+                    className="mt-5 text-center"
                   >
-                    <span className="text-xs font-bold text-amber-600 tracking-wider">
-                      PENDING
-                    </span>
+                    <p className="mx-auto max-w-md text-sm text-muted-foreground">
+                      Your booking has been received. Please wait for confirmation from our team via WhatsApp.
+                    </p>
+
+                    <Button
+                      onClick={handleBookAnother}
+                      className="mt-6 gap-2 px-8"
+                    >
+                      <Calendar className="h-4 w-4" />
+                      Book Another Appointment
+                    </Button>
                   </motion.div>
-
-                  {/* Zigzag bottom edge */}
-                  <div
-                    className="h-3 bg-white"
-                    style={{
-                      maskImage: 'linear-gradient(45deg, transparent 33%, black 33%, black 66%, transparent 66%)',
-                      maskSize: '12px 6px',
-                      maskRepeat: 'repeat-x',
-                      WebkitMaskImage: 'linear-gradient(45deg, transparent 33%, black 33%, black 66%, transparent 66%)',
-                      WebkitMaskSize: '12px 6px',
-                      WebkitMaskRepeat: 'repeat-x',
-                      backgroundImage: 'linear-gradient(45deg, hsl(var(--border)) 25%, transparent 25%, transparent 75%, hsl(var(--border)) 75%)',
-                      backgroundSize: '12px 6px',
-                    }}
-                  />
-                </div>
-
-                {/* Receipt shadow tail */}
-                <div className="max-w-sm mx-auto h-2 bg-rose-100/40 rounded-b-lg -mt-1 mx-4" />
-              </motion.div>
-
-              {/* Action button */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.2 }}
-                className="text-center mt-6"
-              >
-                <Button
-                  onClick={() => {
-                    setCompleted(false);
-                    setStep(0);
-                    setSelectedService(null);
-                    setSelectedDate(undefined);
-                    setSelectedSlot('');
-                    setName('');
-                    setPhone('');
-                    setEmail('');
-                    setNotes('');
-                  }}
-                  className="px-8"
-                >
-                  Book Another Appointment
-                </Button>
-              </motion.div>
+                )}
+              </AnimatePresence>
             </motion.div>
           ) : (
             <motion.div
@@ -417,25 +767,27 @@ export function PublicBookingPage() {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
-              className="rounded-3xl border border-rose-100 bg-white p-6 md:p-8 shadow-soft"
+              className="rounded-3xl border border-rose-100 bg-white p-6 shadow-soft md:p-8"
             >
-              {/* Step 1: Service */}
               {step === 0 && (
                 <div>
-                  <h2 className="text-xl font-serif font-semibold mb-4">Choose a Service</h2>
+                  <h2 className="mb-4 font-serif text-xl font-semibold">
+                    Choose a Service
+                  </h2>
+
                   <div className="space-y-3">
                     {services.map((service) => (
                       <button
                         key={service.id}
                         onClick={() => {
                           setSelectedService(service);
-                          setSelectedSlot('');
+                          setSelectedSlot("");
                         }}
                         className={cn(
-                          'w-full text-left rounded-2xl border-2 p-4 transition-all',
+                          "w-full rounded-2xl border-2 p-4 text-left transition-all",
                           selectedService?.id === service.id
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-primary/30',
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/30"
                         )}
                       >
                         <div className="flex items-center justify-between">
@@ -443,21 +795,29 @@ export function PublicBookingPage() {
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent">
                               <Scissors className="h-5 w-5 text-accent-foreground" />
                             </div>
+
                             <div>
                               <p className="font-medium">{service.name}</p>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {service.duration_minutes} min · {formatCurrency(service.price)}
+
+                              <p className="mt-0.5 text-xs text-muted-foreground">
+                                {service.duration_minutes} min
+                                {" · "}
+                                {formatCurrency(service.price)}
                               </p>
                             </div>
                           </div>
+
                           {selectedService?.id === service.id && (
                             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
                               <Check className="h-4 w-4 text-white" />
                             </div>
                           )}
                         </div>
+
                         {service.description && (
-                          <p className="text-sm text-muted-foreground mt-2">{service.description}</p>
+                          <p className="mt-2 text-sm text-muted-foreground">
+                            {service.description}
+                          </p>
                         )}
                       </button>
                     ))}
@@ -465,56 +825,69 @@ export function PublicBookingPage() {
                 </div>
               )}
 
-              {/* Step 2: Date */}
               {step === 1 && (
                 <div>
-                  <h2 className="text-xl font-serif font-semibold mb-4">Choose a Date</h2>
+                  <h2 className="mb-4 font-serif text-xl font-semibold">
+                    Choose a Date
+                  </h2>
+
                   <div className="flex justify-center">
                     <CalendarPicker
                       mode="single"
                       selected={selectedDate}
-                      onSelect={(d) => {
-                        setSelectedDate(d);
-                        setSelectedSlot('');
+                      onSelect={(date) => {
+                        setSelectedDate(date);
+                        setSelectedSlot("");
                       }}
-                      disabled={(d) => {
+                      disabled={(date) => {
                         const today = new Date();
                         today.setHours(0, 0, 0, 0);
-                        return d < today || d > maxDate;
+                        return date < today || date > maxDate;
                       }}
                     />
                   </div>
                 </div>
               )}
 
-              {/* Step 3: Time */}
               {step === 2 && (
                 <div>
-                  <h2 className="text-xl font-serif font-semibold mb-4">Choose Available Time</h2>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    {selectedDate?.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long' })}
+                  <h2 className="mb-4 font-serif text-xl font-semibold">
+                    Choose Available Time
+                  </h2>
+
+                  <p className="mb-4 text-sm text-muted-foreground">
+                    {selectedDate?.toLocaleDateString("id-ID", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
                   </p>
+
                   {availableSlots.length === 0 ? (
-                    <div className="text-center py-8">
-                      <Calendar className="h-12 w-12 mx-auto text-muted-foreground/40" />
+                    <div className="py-8 text-center">
+                      <Calendar className="mx-auto h-12 w-12 text-muted-foreground/40" />
+
                       <p className="mt-3 text-sm text-muted-foreground">
                         No available slots for this date. Please choose another date.
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
                       {availableSlots.map((slot) => (
                         <button
                           key={slot.start}
                           disabled={!slot.available}
                           onClick={() => setSelectedSlot(slot.start)}
                           className={cn(
-                            'rounded-xl border-2 py-3 text-sm font-medium transition-all',
-                            !slot.available
-                              ? 'border-border bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
-                              : selectedSlot === slot.start
-                                ? 'border-primary bg-primary text-primary-foreground'
-                                : 'border-border bg-white hover:border-primary/30',
+                            "rounded-xl border-2 py-3 text-sm font-medium transition-all",
+                            !slot.available &&
+                              "cursor-not-allowed border-border bg-muted/50 text-muted-foreground/40",
+                            slot.available &&
+                              selectedSlot === slot.start &&
+                              "border-primary bg-primary text-primary-foreground",
+                            slot.available &&
+                              selectedSlot !== slot.start &&
+                              "border-border bg-white hover:border-primary/30"
                           )}
                         >
                           {slot.start}
@@ -525,180 +898,211 @@ export function PublicBookingPage() {
                 </div>
               )}
 
-              {/* Step 4: Details */}
               {step === 3 && (
                 <div>
-                  <h2 className="text-xl font-serif font-semibold mb-4">Your Information</h2>
+                  <h2 className="mb-4 font-serif text-xl font-semibold">
+                    Your Information
+                  </h2>
+
                   <div className="space-y-4">
                     <div className="space-y-2">
                       <Label>Full Name *</Label>
                       <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           value={name}
-                          onChange={(e) => setName(e.target.value)}
+                          onChange={(event) => setName(event.target.value)}
                           placeholder="Your full name"
                           className="pl-10"
                         />
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>Phone Number (WhatsApp) *</Label>
                       <div className="relative">
-                        <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Phone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
+                          onChange={(event) => setPhone(event.target.value)}
                           placeholder="08xxxxxxxxxx"
                           className="pl-10"
                         />
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>Email (optional)</Label>
                       <div className="relative">
-                        <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                        <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                         <Input
                           type="email"
                           value={email}
-                          onChange={(e) => setEmail(e.target.value)}
+                          onChange={(event) => setEmail(event.target.value)}
                           placeholder="email@example.com"
                           className="pl-10"
                         />
                       </div>
                     </div>
+
                     <div className="space-y-2">
                       <Label>Notes (optional)</Label>
                       <Textarea
                         value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
+                        onChange={(event) => setNotes(event.target.value)}
                         placeholder="Any special requests or allergies..."
                         rows={3}
                       />
                     </div>
-                    {/* Summary */}
-                    <div className="rounded-2xl bg-muted/50 p-4 space-y-2">
+
+                    <div className="space-y-2 rounded-2xl bg-muted/50 p-4">
                       <h4 className="text-sm font-semibold">Booking Summary</h4>
+
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Service</span>
                         <span className="font-medium">{selectedService?.name}</span>
                       </div>
+
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Date</span>
                         <span className="font-medium">
-                          {selectedDate?.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                          {selectedDate?.toLocaleDateString("id-ID", {
+                            day: "numeric",
+                            month: "short",
+                          })}
                         </span>
                       </div>
+
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Time</span>
                         <span className="font-medium">{formatTime(selectedSlot)}</span>
                       </div>
+
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Price</span>
-                        <span className="font-medium">{formatCurrency(selectedService?.price)}</span>
+                        <span className="font-medium">
+                          {formatCurrency(selectedService?.price)}
+                        </span>
                       </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Navigation */}
-              {step < 4 && (
-                <div className="flex justify-between mt-6 pt-6 border-t border-border">
+              <div className="mt-6 flex justify-between border-t border-border pt-6">
+                <Button
+                  variant="outline"
+                  onClick={handleBack}
+                  disabled={step === 0}
+                  className="gap-1"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                  Back
+                </Button>
+
+                {step < 3 ? (
                   <Button
-                    variant="outline"
-                    onClick={handleBack}
-                    disabled={step === 0}
+                    onClick={handleNext}
+                    disabled={
+                      (step === 0 && !selectedService) ||
+                      (step === 1 && !selectedDate) ||
+                      (step === 2 && !selectedSlot)
+                    }
                     className="gap-1"
                   >
-                    <ChevronLeft className="h-4 w-4" />
-                    Back
+                    Next
+                    <ChevronRight className="h-4 w-4" />
                   </Button>
-                  {step < 3 ? (
-                    <Button
-                      onClick={handleNext}
-                      disabled={
-                        (step === 0 && !selectedService) ||
-                        (step === 1 && !selectedDate) ||
-                        (step === 2 && !selectedSlot)
-                      }
-                      className="gap-1"
-                    >
-                      Next
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  ) : (
-                    <Button
-                      onClick={handleSubmit}
-                      disabled={submitting || !name || !phone}
-                      className="gap-1"
-                    >
-                      {submitting ? 'Submitting...' : 'Submit Booking'}
-                      <Check className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              )}
+                ) : (
+                  <Button
+                    onClick={handleSubmit}
+                    disabled={
+                      submitting ||
+                      !name.trim() ||
+                      !phone.trim()
+                    }
+                    className="gap-1"
+                  >
+                    {submitting ? "Submitting..." : "Submit Booking"}
+                    <Check className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </main>
 
-      {/* Footer */}
       <footer className="border-t border-rose-100/50 bg-white/60 backdrop-blur-sm">
-        <div className="max-w-3xl mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-sm">
+        <div className="mx-auto max-w-3xl px-4 py-8">
+          <div className="grid grid-cols-1 gap-6 text-sm sm:grid-cols-3">
             <div>
-              <h4 className="font-semibold mb-2">Business Hours</h4>
+              <h4 className="mb-2 font-semibold">Business Hours</h4>
               <div className="space-y-1 text-muted-foreground">
-                {businessHours.filter(bh => bh.is_open).map(bh => (
-                  <div key={bh.id}>
-                    {DAYS_SHORT[bh.day_of_week]}: {formatTime(bh.open_time)} - {formatTime(bh.close_time)}
-                  </div>
-                ))}
-                {businessHours.some(bh => !bh.is_open) && (
+                {businessHours
+                  .filter((hour) => hour.is_open)
+                  .map((hour) => (
+                    <div key={hour.id}>
+                      {DAYS_SHORT[hour.day_of_week]}: {formatTime(hour.open_time)} -{" "}
+                      {formatTime(hour.close_time)}
+                    </div>
+                  ))}
+
+                {businessHours.some((hour) => !hour.is_open) && (
                   <div className="text-muted-foreground/60">
-                    {businessHours.filter(bh => !bh.is_open).map(bh => DAYS_SHORT[bh.day_of_week]).join(', ')}: Closed
+                    {businessHours
+                      .filter((hour) => !hour.is_open)
+                      .map((hour) => DAYS_SHORT[hour.day_of_week])
+                      .join(", ")}
+                    : Closed
                   </div>
                 )}
               </div>
             </div>
+
             <div>
-              <h4 className="font-semibold mb-2">Contact</h4>
-              <div className="space-y-1 text-muted-foreground">
+              <h4 className="mb-2 font-semibold">Contact</h4>
+              <div className="space-y-2 text-muted-foreground">
                 {settings?.phone && (
                   <div className="flex items-center gap-2">
-                    <Phone className="h-3.5 w-3.5" />{settings.phone}
+                    <Phone className="h-3.5 w-3.5" />
+                    {settings.phone}
                   </div>
                 )}
+
                 {settings?.address && (
                   <div className="flex items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5" />{settings.address}
+                    <MapPin className="h-3.5 w-3.5" />
+                    {settings.address}
                   </div>
                 )}
               </div>
             </div>
+
             <div>
-              <h4 className="font-semibold mb-2">Follow Us</h4>
-              <div className="flex gap-3">
+              <h4 className="mb-2 font-semibold">Follow Us</h4>
+              <div className="flex flex-col gap-2">
                 {settings?.whatsapp && (
                   <a
-                    href={`https://wa.me/${settings.whatsapp.replace(/[^0-9]/g, '')}`}
+                    href={`https://wa.me/${settings.whatsapp.replace(/[^0-9]/g, "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-muted-foreground hover:text-primary"
                   >
-                    <MessageCircle className="h-4 w-4" /> WhatsApp
+                    <MessageCircle className="h-4 w-4" />
+                    WhatsApp
                   </a>
                 )}
+
                 {settings?.instagram && (
                   <a
-                    href={`https://instagram.com/${settings.instagram.replace('@', '')}`}
+                    href={`https://instagram.com/${settings.instagram.replace("@", "")}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1.5 text-muted-foreground hover:text-primary"
                   >
-                    <Instagram className="h-4 w-4" /> Instagram
+                    <Instagram className="h-4 w-4" />
+                    Instagram
                   </a>
                 )}
               </div>
@@ -709,7 +1113,3 @@ export function PublicBookingPage() {
     </div>
   );
 }
-
-const DAYS_SHORT: Record<number, string> = {
-  0: 'Sun', 1: 'Mon', 2: 'Tue', 3: 'Wed', 4: 'Thu', 5: 'Fri', 6: 'Sat',
-};

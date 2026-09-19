@@ -88,12 +88,22 @@ export function toDateString(date: Date): string {
   return date.toISOString().split('T')[0];
 }
 
-export function generateWhatsAppUrl(phone: string, message: string): string {
-  const cleanPhone = phone.replace(/[^0-9]/g, '');
-  const formattedPhone = cleanPhone.startsWith('0')
-    ? '62' + cleanPhone.slice(1)
+export function generateWhatsAppUrl(
+  phone: string,
+  message: string
+): string {
+  const cleanPhone = phone.replace(/\D/g, "");
+
+  const formattedPhone = cleanPhone.startsWith("0")
+    ? `62${cleanPhone.slice(1)}`
     : cleanPhone;
-  return `https://wa.me/${formattedPhone}?text=${encodeURIComponent(message)}`;
+
+  const params = new URLSearchParams({
+    phone: formattedPhone,
+    text: message,
+  });
+
+  return `https://api.whatsapp.com/send?${params.toString()}`;
 }
 
 export function debounce<T extends (...args: never[]) => void>(
