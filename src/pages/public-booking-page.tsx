@@ -1,14 +1,6 @@
-import {
-  useState,
-  useEffect,
-  useMemo,
-  useRef,
-} from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 
-import {
-  motion,
-  AnimatePresence,
-} from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 
 import {
   Sparkles,
@@ -35,36 +27,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
-import {
-  Calendar as CalendarPicker,
-} from "@/components/ui/calendar";
+import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 
-import {
-  cn,
-  formatCurrency,
-  formatTime,
-} from "@/lib/utils";
+import { cn, formatCurrency, formatTime } from "@/lib/utils";
 
-import {
-  calculateAvailableSlots,
-} from "@/lib/slots";
+import { calculateAvailableSlots } from "@/lib/slots";
 
-import type {
-  Service,
-  BusinessHour,
-  BlockedDate,
-  Settings,
-} from "@/lib/types";
+import type { Service, BusinessHour, BlockedDate, Settings } from "@/lib/types";
 
 import { toast } from "sonner";
 
-const steps = [
-  "Service",
-  "Date",
-  "Time",
-  "Details",
-  "Done",
-];
+const steps = ["Service", "Date", "Time", "Details", "Done"];
 
 const DAYS_SHORT: Record<number, string> = {
   0: "Sun",
@@ -181,11 +154,7 @@ function ReceiptPrinter({
           <div className="relative h-[30px] border-x border-b border-zinc-300 bg-gradient-to-b from-zinc-200 to-zinc-300 rounded-b-xl shadow-md flex items-center justify-center">
             <div className="relative w-[260px] h-[10px] rounded-full bg-zinc-900 shadow-inner overflow-hidden">
               <motion.div
-                animate={
-                  printing
-                    ? { x: [-10, 10, -5, 8, 0] }
-                    : { x: 0 }
-                }
+                animate={printing ? { x: [-10, 10, -5, 8, 0] } : { x: 0 }}
                 transition={{
                   duration: 0.2,
                   repeat: printing ? Infinity : 0,
@@ -225,7 +194,9 @@ function ReceiptPrinter({
               <div className="space-y-3 px-5 py-4">
                 <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
                   <span className="text-muted-foreground">Service</span>
-                  <span className="text-right font-medium">{selectedService?.name}</span>
+                  <span className="text-right font-medium">
+                    {selectedService?.name}
+                  </span>
                 </div>
 
                 <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
@@ -242,12 +213,16 @@ function ReceiptPrinter({
 
                 <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
                   <span className="text-muted-foreground">Time</span>
-                  <span className="font-medium">{formatTime(selectedSlot)}</span>
+                  <span className="font-medium">
+                    {formatTime(selectedSlot)}
+                  </span>
                 </div>
 
                 <div className="flex justify-between gap-4 border-b border-dashed border-zinc-200 pb-2 text-xs">
                   <span className="text-muted-foreground">Duration</span>
-                  <span className="font-medium">{selectedService?.duration_minutes} min</span>
+                  <span className="font-medium">
+                    {selectedService?.duration_minutes} min
+                  </span>
                 </div>
 
                 <div className="flex justify-between gap-4 pb-1 text-xs">
@@ -438,7 +413,7 @@ export function PublicBookingPage() {
       businessHours,
       blockedDates,
       existingBookings as never,
-      settings?.min_booking_notice_hours ?? 2
+      settings?.min_booking_notice_hours ?? 2,
     );
   }, [
     selectedService,
@@ -536,7 +511,7 @@ export function PublicBookingPage() {
             apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
           },
           body: JSON.stringify(payload),
-        }
+        },
       );
 
       const responseText = await response.text();
@@ -552,7 +527,7 @@ export function PublicBookingPage() {
         throw new Error(
           result.error ||
             result.message ||
-            `Request failed with status ${response.status}`
+            `Request failed with status ${response.status}`,
         );
       }
 
@@ -571,7 +546,7 @@ export function PublicBookingPage() {
         message.toLowerCase().includes("slot")
       ) {
         toast.error(
-          "Sorry, this slot was just booked. Please choose another available time."
+          "Sorry, this slot was just booked. Please choose another available time.",
         );
         setStep(2);
         setSelectedSlot("");
@@ -651,51 +626,74 @@ export function PublicBookingPage() {
             transition={{ delay: 0.1 }}
             className="mx-auto mt-3 max-w-lg text-base text-muted-foreground"
           >
-            Choose your favorite lash service and find an available time that works for you.
+            Choose your favorite lash service and find an available time that
+            works for you.
           </motion.p>
         </section>
       )}
 
       {!completed && (
-        <div className="mx-auto mb-8 max-w-3xl px-4">
-          <div className="flex items-center justify-between">
-            {steps.slice(0, 4).map((stepName, index) => (
-              <div key={stepName} className="flex flex-1 items-center">
-                <div className="flex flex-col items-center">
+        <div className="mx-auto mb-8 max-w-xl px-4">
+          <div className="relative flex items-center justify-between">
+            {/* GARIS LATAR BELAKANG (INACTIVE) */}
+            <div className="absolute left-0 top-4 -z-0 h-0.5 w-full bg-border" />
+
+            {/* GARIS PROGRESS AKTIF (ANIMASI FILL) */}
+            <div
+              className="absolute left-0 top-4 -z-0 h-0.5 bg-primary transition-all duration-300 ease-in-out"
+              style={{
+                width: `${(step / (steps.slice(0, 4).length - 1)) * 100}%`,
+              }}
+            />
+
+            {/* ANGKAH & LABEL STEP */}
+            {steps.slice(0, 4).map((stepName, index) => {
+              const isCompleted = index < step;
+              const isCurrent = index === step;
+
+              return (
+                <div
+                  key={stepName}
+                  className="relative z-10 flex flex-col items-center"
+                >
+                  {/* LINGKARAN ANGKAH */}
                   <div
                     className={cn(
-                      "flex h-9 w-9 items-center justify-center rounded-full text-sm font-medium transition-all",
-                      index < step && "bg-primary text-primary-foreground",
-                      index === step &&
+                      "flex h-8 w-8 items-center justify-center rounded-full text-xs font-semibold transition-all duration-200 bg-white ring-4 ring-white shadow-sm",
+
+                      isCompleted &&
+                        "bg-primary text-primary-foreground ring-white",
+
+                      isCurrent &&
                         "bg-primary text-primary-foreground ring-4 ring-primary/20",
-                      index > step && "bg-muted text-muted-foreground"
+
+                      !isCompleted &&
+                        !isCurrent &&
+                        "bg-muted text-muted-foreground ring-white",
                     )}
                   >
-                    {index < step ? <Check className="h-4 w-4" /> : index + 1}
+                    {isCompleted ? (
+                      <Check className="h-4 w-4 stroke-[2.5]" />
+                    ) : (
+                      index + 1
+                    )}
                   </div>
 
+                  {/* TEXT LABEL */}
                   <span
                     className={cn(
-                      "mt-1.5 text-xs",
+                      "mt-2 text-xs transition-colors text-center",
+
                       index <= step
-                        ? "font-medium text-foreground"
-                        : "text-muted-foreground"
+                        ? "font-semibold text-foreground"
+                        : "font-medium text-muted-foreground",
                     )}
                   >
                     {stepName}
                   </span>
                 </div>
-
-                {index < 3 && (
-                  <div
-                    className={cn(
-                      "mx-2 mt-[-20px] h-0.5 flex-1 transition-colors",
-                      index < step ? "bg-primary" : "bg-border"
-                    )}
-                  />
-                )}
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -746,7 +744,8 @@ export function PublicBookingPage() {
                     className="mt-5 text-center"
                   >
                     <p className="mx-auto max-w-md text-sm text-muted-foreground">
-                      Your booking has been received. Please wait for confirmation from our team via WhatsApp.
+                      Your booking has been received. Please wait for
+                      confirmation from our team via WhatsApp.
                     </p>
 
                     <Button
@@ -769,58 +768,99 @@ export function PublicBookingPage() {
               transition={{ duration: 0.3 }}
               className="rounded-3xl border border-rose-100 bg-white p-6 shadow-soft md:p-8"
             >
+              {/* SERVICE */}
               {step === 0 && (
                 <div>
-                  <h2 className="mb-4 font-serif text-xl font-semibold">
+                  <h2 className="mb-4 font-serif text-xl font-semibold text-foreground">
                     Choose a Service
                   </h2>
 
-                  <div className="space-y-3">
-                    {services.map((service) => (
-                      <button
-                        key={service.id}
-                        onClick={() => {
-                          setSelectedService(service);
-                          setSelectedSlot("");
-                        }}
-                        className={cn(
-                          "w-full rounded-2xl border-2 p-4 text-left transition-all",
-                          selectedService?.id === service.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/30"
-                        )}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-accent">
-                              <Scissors className="h-5 w-5 text-accent-foreground" />
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {services.map((service) => {
+                      const isSelected = selectedService?.id === service.id;
+
+                      return (
+                        <button
+                          key={service.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedService(service);
+                            setSelectedSlot("");
+                          }}
+                          className={cn(
+                            "group relative flex flex-col overflow-hidden rounded-2xl border-2 bg-white text-left transition-all duration-200 hover:shadow-md",
+                            isSelected
+                              ? "border-primary bg-primary/[0.02] ring-2 ring-primary/20 shadow-sm"
+                              : "border-border hover:border-primary/40",
+                          )}
+                        >
+                          {/* GAMBAR BESAR DI ATAS CARD */}
+                          <div className="relative h-44 w-full overflow-hidden bg-muted">
+                            {service.image_url ? (
+                              <img
+                                src={service.image_url}
+                                alt={service.name}
+                                className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = "none";
+                                  e.currentTarget.parentElement?.classList.add(
+                                    "flex",
+                                    "items-center",
+                                    "justify-center",
+                                    "bg-accent",
+                                  );
+                                }}
+                              />
+                            ) : (
+                              <div className="flex h-full w-full items-center justify-center bg-accent text-accent-foreground">
+                                <Scissors className="h-10 w-10 opacity-70" />
+                              </div>
+                            )}
+
+                            {/* OVERLAY DURASI / BADGE */}
+                            <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+                              {service.duration_minutes} min
                             </div>
 
-                            <div>
-                              <p className="font-medium">{service.name}</p>
-
-                              <p className="mt-0.5 text-xs text-muted-foreground">
-                                {service.duration_minutes} min
-                                {" · "}
-                                {formatCurrency(service.price)}
-                              </p>
+                            {/* CHECKMARK INDICATOR */}
+                            <div
+                              className={cn(
+                                "absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full border shadow-sm transition-all duration-200",
+                                isSelected
+                                  ? "border-primary bg-primary text-white scale-100"
+                                  : "border-white/80 bg-white/70 text-transparent backdrop-blur-md scale-90",
+                              )}
+                            >
+                              <Check className="h-4 w-4 stroke-[3]" />
                             </div>
                           </div>
 
-                          {selectedService?.id === service.id && (
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-primary">
-                              <Check className="h-4 w-4 text-white" />
-                            </div>
-                          )}
-                        </div>
+                          {/* DETAIL KONTEN DI BAWAH GAMBAR */}
+                          <div className="flex flex-1 flex-col justify-between p-4">
+                            <div>
+                              <h3 className="font-semibold text-foreground text-base group-hover:text-primary transition-colors">
+                                {service.name}
+                              </h3>
 
-                        {service.description && (
-                          <p className="mt-2 text-sm text-muted-foreground">
-                            {service.description}
-                          </p>
-                        )}
-                      </button>
-                    ))}
+                              {service.description && (
+                                <p className="mt-1.5 line-clamp-2 text-xs text-muted-foreground leading-relaxed">
+                                  {service.description}
+                                </p>
+                              )}
+                            </div>
+
+                            <div className="mt-4 flex items-center justify-between border-t border-border/60 pt-3">
+                              <span className="text-xs font-medium text-muted-foreground">
+                                Estimated Price
+                              </span>
+                              <span className="font-serif text-base font-bold text-primary">
+                                {formatCurrency(service.price)}
+                              </span>
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -868,7 +908,8 @@ export function PublicBookingPage() {
                       <Calendar className="mx-auto h-12 w-12 text-muted-foreground/40" />
 
                       <p className="mt-3 text-sm text-muted-foreground">
-                        No available slots for this date. Please choose another date.
+                        No available slots for this date. Please choose another
+                        date.
                       </p>
                     </div>
                   ) : (
@@ -887,7 +928,7 @@ export function PublicBookingPage() {
                               "border-primary bg-primary text-primary-foreground",
                             slot.available &&
                               selectedSlot !== slot.start &&
-                              "border-border bg-white hover:border-primary/30"
+                              "border-border bg-white hover:border-primary/30",
                           )}
                         >
                           {slot.start}
@@ -960,7 +1001,9 @@ export function PublicBookingPage() {
 
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Service</span>
-                        <span className="font-medium">{selectedService?.name}</span>
+                        <span className="font-medium">
+                          {selectedService?.name}
+                        </span>
                       </div>
 
                       <div className="flex justify-between text-sm">
@@ -975,7 +1018,9 @@ export function PublicBookingPage() {
 
                       <div className="flex justify-between text-sm">
                         <span className="text-muted-foreground">Time</span>
-                        <span className="font-medium">{formatTime(selectedSlot)}</span>
+                        <span className="font-medium">
+                          {formatTime(selectedSlot)}
+                        </span>
                       </div>
 
                       <div className="flex justify-between text-sm">
@@ -1016,11 +1061,7 @@ export function PublicBookingPage() {
                 ) : (
                   <Button
                     onClick={handleSubmit}
-                    disabled={
-                      submitting ||
-                      !name.trim() ||
-                      !phone.trim()
-                    }
+                    disabled={submitting || !name.trim() || !phone.trim()}
                     className="gap-1"
                   >
                     {submitting ? "Submitting..." : "Submit Booking"}
@@ -1043,7 +1084,8 @@ export function PublicBookingPage() {
                   .filter((hour) => hour.is_open)
                   .map((hour) => (
                     <div key={hour.id}>
-                      {DAYS_SHORT[hour.day_of_week]}: {formatTime(hour.open_time)} -{" "}
+                      {DAYS_SHORT[hour.day_of_week]}:{" "}
+                      {formatTime(hour.open_time)} -{" "}
                       {formatTime(hour.close_time)}
                     </div>
                   ))}
