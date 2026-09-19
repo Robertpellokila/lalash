@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { useState, useEffect, useMemo } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
   Filter,
@@ -15,54 +15,58 @@ import {
   PlayCircle,
   CalendarClock,
   CalendarX,
-} from 'lucide-react';
-import { supabase } from '@/lib/supabase';
-import { PageTransition } from '@/components/shared/page-transition';
-import { StatusBadge, PaymentBadge } from '@/components/shared/status-badges';
-import { EmptyState } from '@/components/shared/empty-state';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { PageTransition } from "@/components/shared/page-transition";
+import { StatusBadge, PaymentBadge } from "@/components/shared/status-badges";
+import { EmptyState } from "@/components/shared/empty-state";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from '@/components/ui/sheet';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
+} from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@/components/ui/label";
 import {
   cn,
   formatCurrency,
   formatDate,
   formatTime,
   generateWhatsAppUrl,
-} from '@/lib/utils';
-import type { Booking, BookingStatus, Service, Customer } from '@/lib/types';
-import { toast } from 'sonner';
+} from "@/lib/utils";
+import type { Booking, BookingStatus, Service, Customer } from "@/lib/types";
+import { toast } from "sonner";
 
-const statusActions: { status: BookingStatus; label: string; icon: typeof CheckCircle2 }[] = [
-  { status: 'CONFIRMED', label: 'Confirm', icon: CheckCircle2 },
-  { status: 'ARRIVED', label: 'Mark Arrived', icon: UserCheck },
-  { status: 'IN_PROGRESS', label: 'Start', icon: Play },
-  { status: 'COMPLETED', label: 'Complete', icon: PlayCircle },
-  { status: 'CANCELLED', label: 'Cancel', icon: XCircle },
-  { status: 'NO_SHOW', label: 'No Show', icon: CalendarX },
+const statusActions: {
+  status: BookingStatus;
+  label: string;
+  icon: typeof CheckCircle2;
+}[] = [
+  { status: "CONFIRMED", label: "Confirm", icon: CheckCircle2 },
+  { status: "ARRIVED", label: "Mark Arrived", icon: UserCheck },
+  { status: "IN_PROGRESS", label: "Start", icon: Play },
+  { status: "COMPLETED", label: "Complete", icon: PlayCircle },
+  { status: "CANCELLED", label: "Cancel", icon: XCircle },
+  { status: "NO_SHOW", label: "No Show", icon: CalendarX },
 ];
 
 export function BookingsPage() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('ALL');
-  const [paymentFilter, setPaymentFilter] = useState<string>('ALL');
-  const [sortBy, setSortBy] = useState<string>('newest');
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [paymentFilter, setPaymentFilter] = useState<string>("ALL");
+  const [sortBy, setSortBy] = useState<string>("newest");
   const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -72,12 +76,21 @@ export function BookingsPage() {
 
   const fetchBookings = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('bookings')
-      .select('*, customer:customers(*), service:services(*)')
-      .order('booking_date', { ascending: false })
-      .order('start_time', { ascending: true });
-    setBookings(data ?? []);
+
+    const { data, error } = await supabase
+      .from("bookings")
+      .select("*, customer:customers(*), service:services(*)")
+      .order("booking_date", { ascending: false })
+      .order("start_time", { ascending: true });
+
+    if (error) {
+      console.error("FETCH BOOKINGS ERROR:", error);
+      toast.error(error.message);
+      setBookings([]);
+    } else {
+      setBookings(data ?? []);
+    }
+
     setLoading(false);
   };
 
@@ -92,33 +105,40 @@ export function BookingsPage() {
           b.customer?.phone?.includes(q),
       );
     }
-    if (statusFilter !== 'ALL') {
+    if (statusFilter !== "ALL") {
       result = result.filter((b) => b.status === statusFilter);
     }
-    if (paymentFilter !== 'ALL') {
+    if (paymentFilter !== "ALL") {
       result = result.filter((b) => b.payment_status === paymentFilter);
     }
-    if (sortBy === 'newest') {
+    if (sortBy === "newest") {
       result = [...result].sort((a, b) =>
-        (b.booking_date + b.start_time).localeCompare(a.booking_date + a.start_time),
+        (b.booking_date + b.start_time).localeCompare(
+          a.booking_date + a.start_time,
+        ),
       );
-    } else if (sortBy === 'oldest') {
+    } else if (sortBy === "oldest") {
       result = [...result].sort((a, b) =>
-        (a.booking_date + a.start_time).localeCompare(b.booking_date + b.start_time),
+        (a.booking_date + a.start_time).localeCompare(
+          b.booking_date + b.start_time,
+        ),
       );
     }
     return result;
   }, [bookings, search, statusFilter, paymentFilter, sortBy]);
 
-  const updateBookingStatus = async (bookingId: string, status: BookingStatus) => {
+  const updateBookingStatus = async (
+    bookingId: string,
+    status: BookingStatus,
+  ) => {
     const { error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .update({ status })
-      .eq('id', bookingId);
+      .eq("id", bookingId);
     if (error) {
-      toast.error('Failed to update status');
+      toast.error("Failed to update status");
     } else {
-      toast.success(`Booking marked as ${status.replace('_', ' ')}`);
+      toast.success(`Booking marked as ${status.replace("_", " ")}`);
       fetchBookings();
       if (selectedBooking?.id === bookingId) {
         setSelectedBooking({ ...selectedBooking, status });
@@ -134,31 +154,38 @@ export function BookingsPage() {
     const update: Record<string, unknown> = { payment_status: paymentStatus };
     if (paymentMethod) update.payment_method = paymentMethod;
     const { error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .update(update)
-      .eq('id', bookingId);
+      .eq("id", bookingId);
     if (error) {
-      toast.error('Failed to update payment');
+      toast.error("Failed to update payment");
     } else {
-      toast.success('Payment status updated');
+      toast.success("Payment status updated");
       fetchBookings();
       if (selectedBooking?.id === bookingId) {
-        setSelectedBooking({ ...selectedBooking, payment_status: paymentStatus as never });
+        setSelectedBooking({
+          ...selectedBooking,
+          payment_status: paymentStatus as never,
+        });
       }
     }
   };
 
-  const recordPayment = async (bookingId: string, amount: number, method: string) => {
-    const { error } = await supabase.from('payments').insert({
+  const recordPayment = async (
+    bookingId: string,
+    amount: number,
+    method: string,
+  ) => {
+    const { error } = await supabase.from("payments").insert({
       booking_id: bookingId,
       amount,
       payment_method: method,
-      payment_date: new Date().toISOString().split('T')[0],
+      payment_date: new Date().toISOString().split("T")[0],
     });
     if (error) {
-      toast.error('Failed to record payment');
+      toast.error("Failed to record payment");
     } else {
-      await updatePaymentStatus(bookingId, 'PAID', method);
+      await updatePaymentStatus(bookingId, "PAID", method);
     }
   };
 
@@ -193,8 +220,18 @@ export function BookingsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Status</SelectItem>
-            {['PENDING', 'CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].map((s) => (
-              <SelectItem key={s} value={s}>{s.replace('_', ' ')}</SelectItem>
+            {[
+              "PENDING",
+              "CONFIRMED",
+              "ARRIVED",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED",
+              "NO_SHOW",
+            ].map((s) => (
+              <SelectItem key={s} value={s}>
+                {s.replace("_", " ")}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -204,8 +241,10 @@ export function BookingsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="ALL">All Payments</SelectItem>
-            {['UNPAID', 'DP', 'PAID', 'REFUNDED'].map((s) => (
-              <SelectItem key={s} value={s}>{s}</SelectItem>
+            {["UNPAID", "DP", "PAID", "REFUNDED"].map((s) => (
+              <SelectItem key={s} value={s}>
+                {s}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
@@ -258,7 +297,8 @@ export function BookingsPage() {
                   {booking.customer?.name}
                 </p>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {booking.service?.name} · {formatTime(booking.start_time)}-{formatTime(booking.end_time)}
+                  {booking.service?.name} · {formatTime(booking.start_time)}-
+                  {formatTime(booking.end_time)}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -266,7 +306,7 @@ export function BookingsPage() {
                   {formatCurrency(booking.service?.price)}
                 </span>
                 <StatusBadge status={booking.status} />
-                {booking.source === 'PUBLIC' && (
+                {booking.source === "PUBLIC" && (
                   <span className="text-[10px] bg-accent text-accent-foreground rounded-full px-2 py-0.5 font-medium">
                     Public
                   </span>
@@ -281,7 +321,9 @@ export function BookingsPage() {
       <Sheet open={drawerOpen} onOpenChange={setDrawerOpen}>
         <SheetContent className="w-full sm:max-w-md overflow-y-auto">
           <SheetHeader>
-            <SheetTitle className="text-xl font-serif">Booking Details</SheetTitle>
+            <SheetTitle className="text-xl font-serif">
+              Booking Details
+            </SheetTitle>
           </SheetHeader>
           {selectedBooking && (
             <BookingDetail
@@ -311,21 +353,21 @@ function BookingDetail({
   onRecordPayment: (id: string, amount: number, method: string) => void;
   onClose: () => void;
 }) {
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [notes, setNotes] = useState(booking.notes ?? '');
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [notes, setNotes] = useState(booking.notes ?? "");
 
   const waMessage = `Halo ${booking.customer?.name}, kami ingin mengonfirmasi booking Anda pada ${formatDate(booking.booking_date)} pukul ${formatTime(booking.start_time)} untuk layanan ${booking.service?.name}.`;
   const waUrl = booking.customer?.phone
     ? generateWhatsAppUrl(booking.customer.phone, waMessage)
-    : '#';
+    : "#";
 
   const saveNotes = async () => {
     const { error } = await supabase
-      .from('bookings')
+      .from("bookings")
       .update({ notes })
-      .eq('id', booking.id);
-    if (error) toast.error('Failed to save notes');
-    else toast.success('Notes saved');
+      .eq("id", booking.id);
+    if (error) toast.error("Failed to save notes");
+    else toast.success("Notes saved");
   };
 
   return (
@@ -363,11 +405,15 @@ function BookingDetail({
         <h4 className="text-sm font-semibold">Service</h4>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{booking.service?.name}</span>
-          <span className="font-medium">{formatCurrency(booking.service?.price)}</span>
+          <span className="font-medium">
+            {formatCurrency(booking.service?.price)}
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Duration</span>
-          <span className="font-medium">{booking.service?.duration_minutes} min</span>
+          <span className="font-medium">
+            {booking.service?.duration_minutes} min
+          </span>
         </div>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">Source</span>
@@ -381,23 +427,32 @@ function BookingDetail({
           <h4 className="text-sm font-semibold">Payment</h4>
           <PaymentBadge status={booking.payment_status} />
         </div>
-        {booking.payment_status !== 'PAID' && (
+        {booking.payment_status !== "PAID" && (
           <>
             <Select value={paymentMethod} onValueChange={setPaymentMethod}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {['Cash', 'Bank Transfer', 'QRIS', 'E-wallet', 'Other'].map((m) => (
-                  <SelectItem key={m} value={m}>{m}</SelectItem>
-                ))}
+                {["Cash", "Bank Transfer", "QRIS", "E-wallet", "Other"].map(
+                  (m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ),
+                )}
               </SelectContent>
             </Select>
             <Button
               size="sm"
               className="w-full"
               onClick={() =>
-                booking.service && onRecordPayment(booking.id, booking.service.price, paymentMethod)
+                booking.service &&
+                onRecordPayment(
+                  booking.id,
+                  booking.service.price,
+                  paymentMethod,
+                )
               }
             >
               Record Full Payment
@@ -406,7 +461,7 @@ function BookingDetail({
               variant="outline"
               size="sm"
               className="w-full"
-              onClick={() => onUpdatePayment(booking.id, 'DP', paymentMethod)}
+              onClick={() => onUpdatePayment(booking.id, "DP", paymentMethod)}
             >
               Record DP
             </Button>
@@ -426,7 +481,7 @@ function BookingDetail({
           {statusActions.map((action) => (
             <Button
               key={action.status}
-              variant={booking.status === action.status ? 'default' : 'outline'}
+              variant={booking.status === action.status ? "default" : "outline"}
               size="sm"
               onClick={() => onUpdateStatus(booking.id, action.status)}
               className="gap-1.5"
