@@ -1,16 +1,16 @@
-import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Mail, ArrowLeft, Sparkles } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState } from "react";
+import { motion } from "framer-motion";
+import { Mail, ArrowLeft, Sparkles } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Link, useNavigate } from "react-router-dom";
 
 export function ForgotPasswordPage() {
   const { resetPassword } = useAuth();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const navigate = useNavigate();
@@ -25,7 +25,7 @@ export function ForgotPasswordPage() {
       toast.error(error);
     } else {
       setSent(true);
-      toast.success('Password reset link sent to your email');
+      toast.success("Password reset link sent to your email");
     }
   };
 
@@ -41,7 +41,7 @@ export function ForgotPasswordPage() {
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
             <Sparkles className="h-5 w-5 text-white" />
           </div>
-          <span className="text-xl font-serif font-bold">LashFlow</span>
+          <span className="text-xl font-serif font-bold">LaaLash</span>
         </div>
 
         {sent ? (
@@ -53,7 +53,7 @@ export function ForgotPasswordPage() {
             <p className="text-sm text-muted-foreground">
               We've sent a password reset link to {email}
             </p>
-            <Button onClick={() => navigate('/login')} className="w-full">
+            <Button onClick={() => navigate("/login")} className="w-full">
               Back to Login
             </Button>
           </div>
@@ -84,7 +84,7 @@ export function ForgotPasswordPage() {
               </div>
 
               <Button type="submit" disabled={loading} className="w-full h-11">
-                {loading ? 'Sending...' : 'Send Reset Link'}
+                {loading ? "Sending..." : "Send Reset Link"}
               </Button>
             </form>
           </>

@@ -1,25 +1,25 @@
-import { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Eye, EyeOff, Sparkles, Lock, Mail } from 'lucide-react';
-import { useAuth } from '@/lib/auth-context';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { toast } from 'sonner';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Eye, EyeOff, Sparkles, Lock, Mail } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { toast } from "sonner";
+import { Link, useNavigate } from "react-router-dom";
 
 export function LoginPage() {
   const { signIn, signUp, session } = useAuth();
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [mode, setMode] = useState<"login" | "signup">("login");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     if (session) {
-      navigate('/dashboard', { replace: true });
+      navigate("/dashboard", { replace: true });
     }
   }, [session, navigate]);
 
@@ -27,17 +27,17 @@ export function LoginPage() {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
-    const fn = mode === 'login' ? signIn : signUp;
+    const fn = mode === "login" ? signIn : signUp;
     const { error } = await fn(email, password);
     setLoading(false);
     if (error) {
       toast.error(error);
-    } else if (mode === 'signup') {
-      toast.success('Account created! You can now sign in.');
-      setMode('login');
+    } else if (mode === "signup") {
+      toast.success("Account created! You can now sign in.");
+      setMode("login");
     } else {
-      toast.success('Welcome back!');
-      navigate('/dashboard', { replace: true });
+      toast.success("Welcome back!");
+      navigate("/dashboard", { replace: true });
     }
   };
 
@@ -56,7 +56,7 @@ export function LoginPage() {
               <Sparkles className="h-6 w-6 text-white" />
             </div>
             <span className="text-2xl font-serif font-bold text-foreground">
-              LashFlow
+              LaaLash
             </span>
           </div>
           <h1 className="text-4xl font-serif font-bold text-foreground leading-tight">
@@ -65,14 +65,14 @@ export function LoginPage() {
             with elegance
           </h1>
           <p className="mt-4 text-lg text-muted-foreground max-w-md">
-            Bookings, customers, finance, and scheduling — all in one
-            beautiful dashboard built for lash professionals.
+            Bookings, customers, finance, and scheduling — all in one beautiful
+            dashboard built for lash professionals.
           </p>
           <div className="mt-12 space-y-3">
             {[
-              'Smart booking calendar with drag & drop',
-              'Public booking form for your clients',
-              'Financial tracking & business insights',
+              "Smart booking calendar with drag & drop",
+              "Public booking form for your clients",
+              "Financial tracking & business insights",
             ].map((feature, i) => (
               <motion.div
                 key={feature}
@@ -103,16 +103,16 @@ export function LoginPage() {
             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary">
               <Sparkles className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xl font-serif font-bold">LashFlow</span>
+            <span className="text-xl font-serif font-bold">LaaLash</span>
           </div>
 
           <h2 className="text-2xl font-serif font-bold text-foreground">
-            {mode === 'login' ? 'Welcome back' : 'Create account'}
+            {mode === "login" ? "Welcome back" : "Create account"}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {mode === 'login'
-              ? 'Sign in to your LashFlow dashboard'
-              : 'Set up your LashFlow studio account'}
+            {mode === "login"
+              ? "Sign in to your LaaLash dashboard"
+              : "Set up your LaaLash studio account"}
           </p>
 
           <form onSubmit={handleSubmit} className="mt-8 space-y-4">
@@ -138,7 +138,7 @@ export function LoginPage() {
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input
                   id="password"
-                  type={showPassword ? 'text' : 'password'}
+                  type={showPassword ? "text" : "password"}
                   placeholder="••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -165,25 +165,25 @@ export function LoginPage() {
               className="w-full h-11 text-base"
             >
               {loading
-                ? 'Please wait...'
-                : mode === 'login'
-                  ? 'Sign In'
-                  : 'Create Account'}
+                ? "Please wait..."
+                : mode === "login"
+                  ? "Sign In"
+                  : "Create Account"}
             </Button>
           </form>
 
           <div className="mt-6 text-center text-sm">
             <button
-              onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
+              onClick={() => setMode(mode === "login" ? "signup" : "login")}
               className="text-primary hover:underline font-medium"
             >
-              {mode === 'login'
+              {mode === "login"
                 ? "Don't have an account? Sign up"
-                : 'Already have an account? Sign in'}
+                : "Already have an account? Sign in"}
             </button>
           </div>
 
-          {mode === 'login' && (
+          {mode === "login" && (
             <div className="mt-4 text-center">
               <Link
                 to="/forgot-password"

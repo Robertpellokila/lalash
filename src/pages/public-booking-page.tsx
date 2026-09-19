@@ -129,7 +129,7 @@ function ReceiptPrinter({
                 <Sparkles className="h-3 w-3 text-white" />
               </div>
               <span className="text-xs font-semibold text-zinc-600">
-                {settings?.business_name ?? "LashFlow"}
+                {settings?.business_name ?? "LaaLash"}
               </span>
             </div>
 
@@ -182,7 +182,7 @@ function ReceiptPrinter({
                 <div className="flex items-center justify-center gap-2">
                   <Sparkles className="h-4 w-4 text-primary" />
                   <span className="font-serif text-base font-bold">
-                    {settings?.business_name ?? "LashFlow Studio"}
+                    {settings?.business_name ?? "LaaLash Studio"}
                   </span>
                 </div>
                 <p className="mt-1 text-[9px] uppercase tracking-[0.18em] text-muted-foreground">
@@ -604,7 +604,7 @@ export function PublicBookingPage() {
             )}
 
             <span className="font-serif text-lg font-bold">
-              {settings?.business_name ?? "LashFlow Studio"}
+              {settings?.business_name ?? "LaaLash Studio"}
             </span>
           </div>
         </div>

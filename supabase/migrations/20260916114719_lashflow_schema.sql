@@ -1,5 +1,5 @@
 /*
-# LashFlow - Complete Database Schema
+# LaaLash - Complete Database Schema
 
 ## Overview
 Creates the full database schema for an eyelash business management system with:
@@ -305,7 +305,7 @@ CREATE POLICY "auth_delete_blocked_dates" ON blocked_dates FOR DELETE
 -- ==================== SETTINGS ====================
 CREATE TABLE IF NOT EXISTS settings (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  business_name text NOT NULL DEFAULT 'LashFlow Studio',
+  business_name text NOT NULL DEFAULT 'LaaLash Studio',
   logo_url text,
   phone text,
   whatsapp text,
@@ -455,10 +455,10 @@ ON CONFLICT (day_of_week) DO NOTHING;
 -- Default settings
 INSERT INTO settings (business_name, phone, whatsapp, instagram, address, currency, timezone)
 VALUES (
-  'LashFlow Studio',
+  'LaaLash Studio',
   '+6281234567890',
   '+6281234567890',
-  '@lashflowstudio',
+  '@LaaLashstudio',
   'Jl. Sunset Road No. 88, Denpasar, Bali',
   'IDR',
   'Asia/Makassar'
