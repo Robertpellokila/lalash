@@ -60,8 +60,10 @@ export function calculateAvailableSlots(
   blockedDates: BlockedDate[],
   existingBookings: Booking[],
   minNoticeHours: number = 2,
+  isAdmin: boolean = false, // <-- Tambahkan parameter ini
 ): AvailableSlot[] {
-  if (isDateInPast(date)) return [];
+  // Hanya blokir tanggal lalu jika BUKAN admin
+  if (!isAdmin && isDateInPast(date)) return [];
   if (isDateBlocked(date, blockedDates)) return [];
 
   const bh = getBusinessHourForDate(date, businessHours);
@@ -90,8 +92,10 @@ export function calculateAvailableSlots(
       return start < bookingEnd && end > bookingStart;
     });
 
-    // Check minimum notice
-    const hasMinNotice = isWithinMinNotice(date, minutesToTime(start), minNoticeHours);
+    // Jika admin, abaikan min notice
+    const hasMinNotice = isAdmin 
+      ? true 
+      : isWithinMinNotice(date, minutesToTime(start), minNoticeHours);
 
     slots.push({
       start: minutesToTime(start),

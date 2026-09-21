@@ -80,6 +80,8 @@ export interface Booking {
   payment_method: string | null;
   source: BookingSource;
   notes: string | null;
+  additional_fee?: number; 
+  additional_fee_reason?: string | null;
   created_at: string;
   updated_at: string;
   customer?: Customer;

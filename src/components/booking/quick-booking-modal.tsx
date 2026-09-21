@@ -23,15 +23,22 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { cn } from '@/lib/utils';
 import { formatCurrency, formatDate, minutesToTime, timeToMinutes } from '@/lib/utils';
 import { calculateAvailableSlots } from '@/lib/slots';
-import type { Service, Customer, BusinessHour, BlockedDate } from '@/lib/types';
-import { CalendarIcon, Check, ChevronDown, Search } from 'lucide-react';
-import { motion } from 'framer-motion';
+import type { Service, Customer, BusinessHour, BlockedDate, Booking } from '@/lib/types';
+import { CalendarIcon, ChevronDown, Search } from 'lucide-react';
 
 interface QuickBookingModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   presetCustomerId?: string;
 }
+
+// Helper untuk format tanggal lokal (menghindari bug shift hari akibat UTC)
+const formatLocalDate = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
 
 export function QuickBookingModal({
   open,
@@ -42,6 +49,9 @@ export function QuickBookingModal({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
+  
+  // State untuk booking yang sudah ada pada tanggal yang dipilih
+  const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
@@ -55,12 +65,37 @@ export function QuickBookingModal({
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
+  // State untuk Additional Fee
+  const [additionalFee, setAdditionalFee] = useState<number>(0);
+  const [additionalFeeReason, setAdditionalFeeReason] = useState<string>('');
+
   useEffect(() => {
     if (open) {
       fetchData();
       if (presetCustomerId) setSelectedCustomerId(presetCustomerId);
     }
   }, [open, presetCustomerId]);
+
+  // Fetch Existing Bookings saat tanggal dipilih (agar bisa blokir slot yang sudah penuh, baik hari ini atau masa lalu)
+  useEffect(() => {
+    if (selectedDate) {
+      const fetchBookingsForDate = async () => {
+        const formattedDate = formatLocalDate(selectedDate);
+        const { data } = await supabase
+          .from('bookings')
+          .select('*')
+          .eq('booking_date', formattedDate)
+          .neq('status', 'CANCELLED')
+          .neq('status', 'NO_SHOW');
+          
+        setExistingBookings(data ?? []);
+      };
+      
+      fetchBookingsForDate();
+    } else {
+      setExistingBookings([]);
+    }
+  }, [selectedDate]);
 
   const fetchData = async () => {
     const [servicesRes, customersRes, bhRes, bdRes] = await Promise.all([
@@ -76,14 +111,17 @@ export function QuickBookingModal({
   };
 
   const selectedService = services.find((s) => s.id === selectedServiceId);
+  
+  // Hitung ketersediaan slot (isAdmin = true agar tanggal lampau tetap bisa dicek)
   const availableSlots = selectedService && selectedDate
     ? calculateAvailableSlots(
         selectedDate,
         selectedService.duration_minutes,
         businessHours,
         blockedDates,
-        [],
-        0,
+        existingBookings, // Kirim booking yang ada di tanggal tsb
+        0, // minNoticeHours
+        true // isAdmin flag = true
       )
     : [];
 
@@ -103,12 +141,13 @@ export function QuickBookingModal({
     if (!service) return;
 
     const endTime = minutesToTime(timeToMinutes(selectedSlot) + service.duration_minutes);
+    const formattedDate = formatLocalDate(selectedDate);
 
-    // Check for conflicts
+    // Double-check for conflicts di database sebelum insert
     const { data: conflicts } = await supabase
       .from('bookings')
       .select('id')
-      .eq('booking_date', selectedDate.toISOString().split('T')[0])
+      .eq('booking_date', formattedDate)
       .neq('status', 'CANCELLED')
       .neq('status', 'NO_SHOW')
       .lt('start_time', endTime)
@@ -120,10 +159,11 @@ export function QuickBookingModal({
       return;
     }
 
+    // Insert Booking ke Supabase dengan menyertakan additional_fee
     const { error } = await supabase.from('bookings').insert({
       customer_id: selectedCustomerId,
       service_id: selectedServiceId,
-      booking_date: selectedDate.toISOString().split('T')[0],
+      booking_date: formattedDate,
       start_time: selectedSlot,
       end_time: endTime,
       status,
@@ -131,6 +171,8 @@ export function QuickBookingModal({
       payment_method: paymentMethod,
       source: 'ADMIN',
       notes,
+      additional_fee: additionalFee,
+      additional_fee_reason: additionalFeeReason,
     });
 
     setSaving(false);
@@ -154,6 +196,8 @@ export function QuickBookingModal({
     setPaymentMethod('Cash');
     setNotes('');
     setCustomerSearch('');
+    setAdditionalFee(0);
+    setAdditionalFeeReason('');
   };
 
   return (
@@ -264,8 +308,8 @@ export function QuickBookingModal({
                     setSelectedDate(d);
                     setSelectedSlot('');
                   }}
-                  disabled={(d) => d < new Date(new Date().setHours(0, 0, 0, 0))}
                   initialFocus
+                  // Prop disabled dihilangkan agar admin bisa pilih tanggal lalu
                 />
               </PopoverContent>
             </Popover>
@@ -303,13 +347,51 @@ export function QuickBookingModal({
             </div>
           )}
 
-          {/* Price */}
+          {/* Price & Additional Fee Section */}
           {selectedService && (
-            <div className="rounded-lg bg-accent/50 px-4 py-3 flex items-center justify-between">
-              <span className="text-sm text-muted-foreground">Price</span>
-              <span className="text-lg font-semibold">
-                {formatCurrency(selectedService.price)}
-              </span>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                {/* Input Additional Fee */}
+                <div className="space-y-2">
+                  <Label>Additional Fee (Optional)</Label>
+                  <Input
+                    type="number"
+                    placeholder="e.g. 20000"
+                    value={additionalFee || ''}
+                    onChange={(e) => setAdditionalFee(Number(e.target.value) || 0)}
+                  />
+                </div>
+                {/* Input Reason */}
+                <div className="space-y-2">
+                  <Label>Fee Reason</Label>
+                  <Input
+                    placeholder="e.g. Transport, Home service..."
+                    value={additionalFeeReason}
+                    onChange={(e) => setAdditionalFeeReason(e.target.value)}
+                    disabled={!additionalFee || additionalFee <= 0}
+                  />
+                </div>
+              </div>
+
+              {/* Order Summary UI */}
+              <div className="rounded-lg bg-accent/50 px-4 py-3 space-y-1">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>Service Price</span>
+                  <span>{formatCurrency(selectedService.price)}</span>
+                </div>
+                {additionalFee > 0 && (
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>Additional Fee</span>
+                    <span>+{formatCurrency(additionalFee)}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between pt-2 mt-2 border-t border-border">
+                  <span className="text-sm font-medium">Total Price</span>
+                  <span className="text-lg font-semibold text-primary">
+                    {formatCurrency(selectedService.price + (additionalFee || 0))}
+                  </span>
+                </div>
+              </div>
             </div>
           )}
 

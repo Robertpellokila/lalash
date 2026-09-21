@@ -274,46 +274,52 @@ export function BookingsPage() {
         />
       ) : (
         <div className="space-y-3">
-          {filtered.map((booking, i) => (
-            <motion.div
-              key={booking.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: i * 0.03 }}
-              onClick={() => openBookingDetail(booking)}
-              className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 hover:shadow-soft cursor-pointer transition-shadow"
-            >
-              <div className="flex flex-col items-center justify-center min-w-[70px]">
-                <span className="text-xs text-muted-foreground">
-                  {formatDate(booking.booking_date)}
-                </span>
-                <span className="text-sm font-semibold mt-0.5">
-                  {formatTime(booking.start_time)}
-                </span>
-              </div>
-              <div className="w-px h-12 bg-border" />
-              <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm truncate">
-                  {booking.customer?.name}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {booking.service?.name} · {formatTime(booking.start_time)}-
-                  {formatTime(booking.end_time)}
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium hidden sm:block">
-                  {formatCurrency(booking.service?.price)}
-                </span>
-                <StatusBadge status={booking.status} />
-                {booking.source === "PUBLIC" && (
-                  <span className="text-[10px] bg-accent text-accent-foreground rounded-full px-2 py-0.5 font-medium">
-                    Public
+          {filtered.map((booking, i) => {
+            // HITUNG TOTAL HARGA DI SINI (Service + Additional Fee)
+            const listTotalPrice = (booking.service?.price ?? 0) + (booking.additional_fee ?? 0);
+
+            return (
+              <motion.div
+                key={booking.id}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: i * 0.03 }}
+                onClick={() => openBookingDetail(booking)}
+                className="flex items-center gap-4 rounded-xl border border-border bg-card p-4 hover:shadow-soft cursor-pointer transition-shadow"
+              >
+                <div className="flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xs text-muted-foreground">
+                    {formatDate(booking.booking_date)}
                   </span>
-                )}
-              </div>
-            </motion.div>
-          ))}
+                  <span className="text-sm font-semibold mt-0.5">
+                    {formatTime(booking.start_time)}
+                  </span>
+                </div>
+                <div className="w-px h-12 bg-border" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate">
+                    {booking.customer?.name}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {booking.service?.name} · {formatTime(booking.start_time)}-
+                    {formatTime(booking.end_time)}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium hidden sm:block">
+                    {/* TAMPILKAN TOTAL HARGA */}
+                    {formatCurrency(listTotalPrice)}
+                  </span>
+                  <StatusBadge status={booking.status} />
+                  {booking.source === "PUBLIC" && (
+                    <span className="text-[10px] bg-accent text-accent-foreground rounded-full px-2 py-0.5 font-medium">
+                      Public
+                    </span>
+                  )}
+                </div>
+              </motion.div>
+            );
+          })}
         </div>
       )}
 
@@ -356,6 +362,11 @@ function BookingDetail({
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState(booking.notes ?? "");
 
+  // Hitung total harga (Harga Service + Additional Fee jika ada)
+  const servicePrice = booking.service?.price ?? 0;
+  const additionalFee = booking.additional_fee ?? 0;
+  const totalPrice = servicePrice + additionalFee;
+
   const waMessage = [
     `Halo Kak ${booking.customer?.name} 🤍`,
     ``,
@@ -381,10 +392,6 @@ function BookingDetail({
     `Sampai bertemu di *Lalash* ✨`,
   ].join("\n");
 
-  const waUrl = booking.customer?.phone
-    ? generateWhatsAppUrl(booking.customer.phone, waMessage)
-    : "#";
-
   const saveNotes = async () => {
     const { error } = await supabase
       .from("bookings")
@@ -393,9 +400,6 @@ function BookingDetail({
     if (error) toast.error("Failed to save notes");
     else toast.success("Notes saved");
   };
-
-  console.log(waMessage);
-  console.log(waUrl);
 
   return (
     <div className="space-y-6 mt-6">
@@ -430,7 +434,6 @@ function BookingDetail({
             }
 
             const url = generateWhatsAppUrl(booking.customer.phone, waMessage);
-
             window.open(url, "_blank", "noopener,noreferrer");
           }}
         >
@@ -439,24 +442,43 @@ function BookingDetail({
         </Button>
       </div>
 
-      {/* Service Info */}
+      {/* Service Info & Additional Fee */}
       <div className="rounded-xl border border-border p-4 space-y-2">
-        <h4 className="text-sm font-semibold">Service</h4>
+        <h4 className="text-sm font-semibold mb-1">Service & Breakdown</h4>
         <div className="flex justify-between text-sm">
           <span className="text-muted-foreground">{booking.service?.name}</span>
           <span className="font-medium">
-            {formatCurrency(booking.service?.price)}
+            {formatCurrency(servicePrice)}
           </span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Duration</span>
-          <span className="font-medium">
-            {booking.service?.duration_minutes} min
-          </span>
+
+        {/* Tampilkan Additional Fee & Reason Jika Ada */}
+        {additionalFee > 0 && (
+          <div className="flex justify-between text-sm text-amber-600 dark:text-amber-400">
+            <span>
+              Additional Fee
+              {booking.additional_fee_reason && (
+                <span className="block text-[11px] text-muted-foreground">
+                  Reason: {booking.additional_fee_reason}
+                </span>
+              )}
+            </span>
+            <span className="font-medium">+{formatCurrency(additionalFee)}</span>
+          </div>
+        )}
+
+        <div className="border-t border-border pt-2 flex justify-between text-sm font-semibold">
+          <span>Total Price</span>
+          <span className="text-primary">{formatCurrency(totalPrice)}</span>
         </div>
-        <div className="flex justify-between text-sm">
-          <span className="text-muted-foreground">Source</span>
-          <span className="font-medium">{booking.source}</span>
+
+        <div className="flex justify-between text-xs text-muted-foreground pt-1">
+          <span>Duration</span>
+          <span>{booking.service?.duration_minutes} min</span>
+        </div>
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Source</span>
+          <span>{booking.source}</span>
         </div>
       </div>
 
@@ -486,15 +508,14 @@ function BookingDetail({
               size="sm"
               className="w-full"
               onClick={() =>
-                booking.service &&
                 onRecordPayment(
                   booking.id,
-                  booking.service.price,
+                  totalPrice, // Otomatis mencatat pembayaran sesuai total harga
                   paymentMethod,
                 )
               }
             >
-              Record Full Payment
+              Record Full Payment ({formatCurrency(totalPrice)})
             </Button>
             <Button
               variant="outline"
