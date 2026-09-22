@@ -15,6 +15,8 @@ import {
   PlayCircle,
   CalendarClock,
   CalendarX,
+  Sparkles,
+  Plus,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { PageTransition } from "@/components/shared/page-transition";
@@ -276,8 +278,12 @@ export function BookingsPage() {
         <div className="space-y-3">
           {filtered.map((booking, i) => {
             // HITUNG TOTAL HARGA DI SINI (Service + Additional Fee)
-            const listTotalPrice = (booking.service?.price ?? 0) + (booking.additional_fee ?? 0);
-
+            const activePrice =
+              booking.service?.discount_price &&
+              booking.service.discount_price > 0
+                ? booking.service.discount_price
+                : (booking.service?.price ?? 0);
+            const listTotalPrice = activePrice + (booking.additional_fee ?? 0);
             return (
               <motion.div
                 key={booking.id}
@@ -338,6 +344,7 @@ export function BookingsPage() {
               onUpdatePayment={updatePaymentStatus}
               onRecordPayment={recordPayment}
               onClose={() => setDrawerOpen(false)}
+              onUpdate={fetchBookings}
             />
           )}
         </SheetContent>
@@ -352,44 +359,68 @@ function BookingDetail({
   onUpdatePayment,
   onRecordPayment,
   onClose,
+  onUpdate,
 }: {
   booking: Booking;
   onUpdateStatus: (id: string, status: BookingStatus) => void;
   onUpdatePayment: (id: string, status: string, method?: string) => void;
   onRecordPayment: (id: string, amount: number, method: string) => void;
   onClose: () => void;
+  onUpdate?: () => void;
 }) {
   const [paymentMethod, setPaymentMethod] = useState("Cash");
   const [notes, setNotes] = useState(booking.notes ?? "");
 
+  // State untuk Royalty Card Action
+  const [loyaltyPoints, setLoyaltyPoints] = useState(
+    booking.customer?.loyalty_points ?? 0,
+  );
+  const [processingLoyalty, setProcessingLoyalty] = useState(false);
+
+  // State untuk mencegah klik stamp berkali-kali pada booking yang sama
+  const [stampGiven, setStampGiven] = useState(booking.is_stamp_given ?? false);
+
+  // Sync state ketika booking/customer berubah
+  useEffect(() => {
+    setLoyaltyPoints(booking.customer?.loyalty_points ?? 0);
+    setStampGiven(booking.is_stamp_given ?? false);
+  }, [booking]);
+
   // Hitung total harga (Harga Service + Additional Fee jika ada)
-  const servicePrice = booking.service?.price ?? 0;
+  const hasDiscount =
+    booking.service?.discount_price && booking.service.discount_price > 0;
+  const servicePrice = hasDiscount
+    ? booking.service!.discount_price!
+    : (booking.service?.price ?? 0);
   const additionalFee = booking.additional_fee ?? 0;
   const totalPrice = servicePrice + additionalFee;
 
   const waMessage = [
     `Halo Kak ${booking.customer?.name} 🤍`,
     ``,
-    `Kami dari *Lalash* ingin mengonfirmasi jadwal appointment Kakak dengan detail berikut:`,
+    `Konfirmasi appointment *Lalash* ✨`,
     ``,
-    `✨ *Service*`,
-    `${booking.service?.name}`,
+    `💆 *Service:* ${booking.service?.name}`,
+    `📅 *Date:* ${formatDate(booking.booking_date)}`,
+    `⏰ *Time:* ${formatTime(booking.start_time)}`,
     ``,
-    `📅 *Date*`,
-    `${formatDate(booking.booking_date)}`,
+    `Apakah jadwal tersebut sudah sesuai, Kak?`,
+    `Balas *CONFIRM* untuk mengonfirmasi booking.`,
     ``,
-    `⏰ *Time*`,
-    `${formatTime(booking.start_time)}`,
+    `Jika ingin mengubah jadwal, silakan hubungi kami. 😊`,
     ``,
-    `Mohon konfirmasi kembali apakah jadwal tersebut sudah sesuai dengan waktu yang Kakak inginkan.`,
+    `Sampai bertemu di *Lalash*! 🤍`,
+  ].join("\n");
+
+  const waThankYouMessage = [
+    `Halo Kak ${booking.customer?.name} 🤍`,
     ``,
-    `Jika sudah sesuai, Kakak dapat membalas pesan ini dengan *“CONFIRM”* agar booking dapat kami catat sebagai terkonfirmasi.`,
+    `Terima kasih banyak sudah mempercayakan perawatan beauty-nya di *Lalash* hari ini ✨`,
+    `Semoga Kakak suka dengan hasilnya yaa.`,
     ``,
-    `Apabila Kakak ingin melakukan perubahan jadwal atau memiliki pertanyaan, jangan ragu untuk menghubungi kami. Kami dengan senang hati akan membantu. 😊`,
+    `Ditunggu kedatangannya kembali! Kalau ada pertanyaan, jangan ragu untuk chat kami ya Kak.`,
     ``,
-    `Terima kasih telah mempercayakan beauty appointment Kakak kepada *Lalash*. 🤍`,
-    ``,
-    `Sampai bertemu di *Lalash* ✨`,
+    `Have a great day! 🥰`,
   ].join("\n");
 
   const saveNotes = async () => {
@@ -399,6 +430,88 @@ function BookingDetail({
       .eq("id", booking.id);
     if (error) toast.error("Failed to save notes");
     else toast.success("Notes saved");
+  };
+
+  const handleAddStamp = async () => {
+    if (stampGiven) return;
+
+    setProcessingLoyalty(true);
+
+    const { data: custData } = await supabase
+      .from("customers")
+      .select("loyalty_points")
+      .eq("id", booking.customer_id)
+      .single();
+
+    const currentPoints = custData?.loyalty_points ?? loyaltyPoints;
+
+    if (currentPoints >= 10) {
+      toast.error("Royalty card is already full (10/10)!");
+      setProcessingLoyalty(false);
+      return;
+    }
+
+    const newPoints = currentPoints + 1;
+
+    // 1. Update poin customer di database
+    const { error: custError } = await supabase
+      .from("customers")
+      .update({ loyalty_points: newPoints })
+      .eq("id", booking.customer_id);
+
+    // 2. Tandai booking ini sudah diberi stamp
+    const { error: bookError } = await supabase
+      .from("bookings")
+      .update({ is_stamp_given: true })
+      .eq("id", booking.id);
+
+    if (custError || bookError) {
+      toast.error("Failed to add stamp");
+    } else {
+      setLoyaltyPoints(newPoints);
+      setStampGiven(true);
+      toast.success(`1 Loyalty Stamp Added! (${newPoints}/10)`);
+
+      if (onUpdate) {
+        onUpdate();
+      }
+
+      // --- TAMBAHKAN BARIS INI ---
+      // Memaksa halaman utama/list booking mengambil data terbaru dari database secara otomatis
+      // ---------------------------
+    }
+    setProcessingLoyalty(false);
+  };
+
+  const handleApplyLoyaltyDiscount = async () => {
+    setProcessingLoyalty(true);
+
+    // Potongan harga 30% dari servicePrice
+    const discountAmount = -(servicePrice * 0.3);
+
+    // 1. Terapkan diskon ke booking ini
+    const { error: bookError } = await supabase
+      .from("bookings")
+      .update({
+        additional_fee: discountAmount,
+        additional_fee_reason: "Royalty 30% Reward (Card Full)",
+      })
+      .eq("id", booking.id);
+
+    // 2. Reset point customer ke 0 di tabel customers
+    const { error: custError } = await supabase
+      .from("customers")
+      .update({ loyalty_points: 0 })
+      .eq("id", booking.customer_id);
+
+    if (bookError || custError) {
+      toast.error("Failed to apply royalty discount");
+    } else {
+      toast.success("30% Royalty Discount Applied & Points Reset!");
+      if (onUpdate) onUpdate();
+      onClose();
+    }
+    setProcessingLoyalty(false);
   };
 
   return (
@@ -432,7 +545,6 @@ function BookingDetail({
               toast.error("Customer phone number is not available");
               return;
             }
-
             const url = generateWhatsAppUrl(booking.customer.phone, waMessage);
             window.open(url, "_blank", "noopener,noreferrer");
           }}
@@ -440,30 +552,116 @@ function BookingDetail({
           <MessageCircle className="h-4 w-4" />
           Contact via WhatsApp
         </Button>
+
+        {booking.status === "COMPLETED" && (
+          <Button
+            size="sm"
+            className="w-full gap-2 bg-green-600 text-white hover:bg-green-700"
+            onClick={() => {
+              if (!booking.customer?.phone)
+                return toast.error("Phone not available");
+              const url = generateWhatsAppUrl(
+                booking.customer.phone,
+                waThankYouMessage,
+              );
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+          >
+            <MessageCircle className="h-4 w-4" />
+            Send Thank You Message
+          </Button>
+        )}
+      </div>
+
+      {/* ROYALTY ACTION BANNER */}
+      {/* ROYALTY ACTION BANNER */}
+      <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 dark:border-rose-900/50 dark:bg-rose-950/20">
+        <div className="flex items-center justify-between mb-2">
+          <h4 className="text-sm font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1.5">
+            <Sparkles className="h-4 w-4" /> Royalty Card
+          </h4>
+          <span className="text-xs font-bold bg-white dark:bg-zinc-900 px-2.5 py-1 rounded-full text-rose-600 shadow-sm">
+            {loyaltyPoints}/10 Stamps
+          </span>
+        </div>
+        
+        {/* Jika poin masih di bawah 9, tombol tambah stamp muncul (selama belum diberi stamp untuk booking ini) */}
+        {loyaltyPoints < 10 && (
+          <Button 
+            size="sm" 
+            variant={stampGiven ? "secondary" : "outline"}
+            className={cn(
+              "w-full mb-2",
+              stampGiven 
+                ? "bg-muted text-muted-foreground cursor-not-allowed" 
+                : "border-rose-200 text-rose-700 hover:bg-rose-100 hover:text-rose-800"
+            )}
+            onClick={handleAddStamp}
+            disabled={processingLoyalty || stampGiven}
+          >
+            {stampGiven ? (
+              <>Stamp Given for this Visit ✓</>
+            ) : (
+              <><Plus className="h-4 w-4 mr-1" /> {processingLoyalty ? 'Adding...' : 'Give 1 Stamp for this visit'}</>
+            )}
+          </Button>
+        )}
+
+        {/* Jika poin sudah 9 (kunjungan ke-10), tawarkan opsi klaim diskon 30% */}
+        {loyaltyPoints >= 10 && (
+          <div className="space-y-2 mt-2">
+            <p className="text-xs font-bold text-rose-600 text-center animate-pulse">
+              🎉 Card is at 9/10! Ready for 30% Reward if physical card is brought.
+            </p>
+            <Button 
+              size="sm" 
+              className="w-full bg-rose-600 hover:bg-rose-700 text-white shadow-md"
+              onClick={handleApplyLoyaltyDiscount}
+              disabled={processingLoyalty}
+            >
+              <Sparkles className="h-4 w-4 mr-1" /> Apply 30% OFF & Reset Stamps
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Service Info & Additional Fee */}
       <div className="rounded-xl border border-border p-4 space-y-2">
         <h4 className="text-sm font-semibold mb-1">Service & Breakdown</h4>
-        <div className="flex justify-between text-sm">
+        <div className="flex justify-between text-sm items-start">
           <span className="text-muted-foreground">{booking.service?.name}</span>
-          <span className="font-medium">
-            {formatCurrency(servicePrice)}
-          </span>
+          <div className="flex flex-col items-end">
+            {hasDiscount ? (
+              <>
+                <span className="text-[10px] text-muted-foreground line-through leading-none mb-0.5">
+                  {formatCurrency(booking.service?.price)}
+                </span>
+                <span className="font-medium text-rose-500 leading-none">
+                  {formatCurrency(servicePrice)}
+                </span>
+              </>
+            ) : (
+              <span className="font-medium">
+                {formatCurrency(servicePrice)}
+              </span>
+            )}
+          </div>
         </div>
 
-        {/* Tampilkan Additional Fee & Reason Jika Ada */}
-        {additionalFee > 0 && (
+        {additionalFee !== 0 && (
           <div className="flex justify-between text-sm text-amber-600 dark:text-amber-400">
             <span>
-              Additional Fee
+              {additionalFee < 0 ? "Discount applied" : "Additional Fee"}
               {booking.additional_fee_reason && (
                 <span className="block text-[11px] text-muted-foreground">
                   Reason: {booking.additional_fee_reason}
                 </span>
               )}
             </span>
-            <span className="font-medium">+{formatCurrency(additionalFee)}</span>
+            <span className="font-medium">
+              {additionalFee > 0 ? "+" : ""}
+              {formatCurrency(additionalFee)}
+            </span>
           </div>
         )}
 
@@ -508,11 +706,7 @@ function BookingDetail({
               size="sm"
               className="w-full"
               onClick={() =>
-                onRecordPayment(
-                  booking.id,
-                  totalPrice, // Otomatis mencatat pembayaran sesuai total harga
-                  paymentMethod,
-                )
+                onRecordPayment(booking.id, totalPrice, paymentMethod)
               }
             >
               Record Full Payment ({formatCurrency(totalPrice)})

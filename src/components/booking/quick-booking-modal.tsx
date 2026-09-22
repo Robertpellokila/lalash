@@ -1,30 +1,46 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
-import { toast } from 'sonner';
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
-import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Input } from '@/components/ui/input';
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { cn } from '@/lib/utils';
-import { formatCurrency, formatDate, minutesToTime, timeToMinutes } from '@/lib/utils';
-import { calculateAvailableSlots } from '@/lib/slots';
-import type { Service, Customer, BusinessHour, BlockedDate, Booking } from '@/lib/types';
-import { CalendarIcon, ChevronDown, Search } from 'lucide-react';
+} from "@/components/ui/select";
+import { Calendar } from "@/components/ui/calendar";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { cn } from "@/lib/utils";
+import {
+  formatCurrency,
+  formatDate,
+  minutesToTime,
+  timeToMinutes,
+} from "@/lib/utils";
+import { calculateAvailableSlots } from "@/lib/slots";
+import type {
+  Service,
+  Customer,
+  BusinessHour,
+  BlockedDate,
+  Booking,
+} from "@/lib/types";
+import { CalendarIcon, ChevronDown, Search } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface QuickBookingModalProps {
   open: boolean;
@@ -35,8 +51,8 @@ interface QuickBookingModalProps {
 // Helper untuk format tanggal lokal (menghindari bug shift hari akibat UTC)
 const formatLocalDate = (date: Date) => {
   const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 };
 
@@ -49,25 +65,27 @@ export function QuickBookingModal({
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [businessHours, setBusinessHours] = useState<BusinessHour[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
-  
+
   // State untuk booking yang sudah ada pada tanggal yang dipilih
   const [existingBookings, setExistingBookings] = useState<Booking[]>([]);
 
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedServiceId, setSelectedServiceId] = useState<string>("");
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [selectedSlot, setSelectedSlot] = useState<string>('');
-  const [status, setStatus] = useState('CONFIRMED');
-  const [paymentStatus, setPaymentStatus] = useState('UNPAID');
-  const [paymentMethod, setPaymentMethod] = useState('Cash');
-  const [notes, setNotes] = useState('');
-  const [customerSearch, setCustomerSearch] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState<string>("");
+  const [status, setStatus] = useState("CONFIRMED");
+  const [paymentStatus, setPaymentStatus] = useState("UNPAID");
+  const [paymentMethod, setPaymentMethod] = useState("Cash");
+  const [notes, setNotes] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [customerDropdownOpen, setCustomerDropdownOpen] = useState(false);
   const [saving, setSaving] = useState(false);
 
   // State untuk Additional Fee
   const [additionalFee, setAdditionalFee] = useState<number>(0);
-  const [additionalFeeReason, setAdditionalFeeReason] = useState<string>('');
+  const [additionalFeeReason, setAdditionalFeeReason] = useState<string>("");
+  const [isRedeemingLoyalty, setIsRedeemingLoyalty] = useState(false);
+  const [customerPoints, setCustomerPoints] = useState<number>(0);
 
   useEffect(() => {
     if (open) {
@@ -76,21 +94,31 @@ export function QuickBookingModal({
     }
   }, [open, presetCustomerId]);
 
+  useEffect(() => {
+    if (selectedCustomerId) {
+      const cust = customers.find((c) => c.id === selectedCustomerId);
+      setCustomerPoints(cust?.loyalty_points ?? 0);
+    } else {
+      setCustomerPoints(0);
+      setIsRedeemingLoyalty(false);
+    }
+  }, [selectedCustomerId, customers]);
+
   // Fetch Existing Bookings saat tanggal dipilih (agar bisa blokir slot yang sudah penuh, baik hari ini atau masa lalu)
   useEffect(() => {
     if (selectedDate) {
       const fetchBookingsForDate = async () => {
         const formattedDate = formatLocalDate(selectedDate);
         const { data } = await supabase
-          .from('bookings')
-          .select('*')
-          .eq('booking_date', formattedDate)
-          .neq('status', 'CANCELLED')
-          .neq('status', 'NO_SHOW');
-          
+          .from("bookings")
+          .select("*")
+          .eq("booking_date", formattedDate)
+          .neq("status", "CANCELLED")
+          .neq("status", "NO_SHOW");
+
         setExistingBookings(data ?? []);
       };
-      
+
       fetchBookingsForDate();
     } else {
       setExistingBookings([]);
@@ -99,10 +127,10 @@ export function QuickBookingModal({
 
   const fetchData = async () => {
     const [servicesRes, customersRes, bhRes, bdRes] = await Promise.all([
-      supabase.from('services').select('*').eq('active', true).order('name'),
-      supabase.from('customers').select('*').order('name'),
-      supabase.from('business_hours').select('*').order('day_of_week'),
-      supabase.from('blocked_dates').select('*'),
+      supabase.from("services").select("*").eq("active", true).order("name"),
+      supabase.from("customers").select("*").order("name"),
+      supabase.from("business_hours").select("*").order("day_of_week"),
+      supabase.from("blocked_dates").select("*"),
     ]);
     setServices(servicesRes.data ?? []);
     setCustomers(customersRes.data ?? []);
@@ -111,28 +139,35 @@ export function QuickBookingModal({
   };
 
   const selectedService = services.find((s) => s.id === selectedServiceId);
-  
-  // Hitung ketersediaan slot (isAdmin = true agar tanggal lampau tetap bisa dicek)
-  const availableSlots = selectedService && selectedDate
-    ? calculateAvailableSlots(
-        selectedDate,
-        selectedService.duration_minutes,
-        businessHours,
-        blockedDates,
-        existingBookings, // Kirim booking yang ada di tanggal tsb
-        0, // minNoticeHours
-        true // isAdmin flag = true
-      )
-    : [];
 
-  const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-    c.phone.includes(customerSearch),
+  // Hitung ketersediaan slot (isAdmin = true agar tanggal lampau tetap bisa dicek)
+  const availableSlots =
+    selectedService && selectedDate
+      ? calculateAvailableSlots(
+          selectedDate,
+          selectedService.duration_minutes,
+          businessHours,
+          blockedDates,
+          existingBookings, // Kirim booking yang ada di tanggal tsb
+          0, // minNoticeHours
+          true, // isAdmin flag = true
+        )
+      : [];
+
+  const filteredCustomers = customers.filter(
+    (c) =>
+      c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
+      c.phone.includes(customerSearch),
   );
 
   const handleSubmit = async () => {
-    if (!selectedCustomerId || !selectedServiceId || !selectedDate || !selectedSlot) {
-      toast.error('Please fill in all required fields');
+    if (
+      !selectedCustomerId ||
+      !selectedServiceId ||
+      !selectedDate ||
+      !selectedSlot
+    ) {
+      toast.error("Please fill in all required fields");
       return;
     }
 
@@ -140,27 +175,29 @@ export function QuickBookingModal({
     const service = services.find((s) => s.id === selectedServiceId);
     if (!service) return;
 
-    const endTime = minutesToTime(timeToMinutes(selectedSlot) + service.duration_minutes);
+    const endTime = minutesToTime(
+      timeToMinutes(selectedSlot) + service.duration_minutes,
+    );
     const formattedDate = formatLocalDate(selectedDate);
 
     // Double-check for conflicts di database sebelum insert
     const { data: conflicts } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('booking_date', formattedDate)
-      .neq('status', 'CANCELLED')
-      .neq('status', 'NO_SHOW')
-      .lt('start_time', endTime)
-      .gt('end_time', selectedSlot);
+      .from("bookings")
+      .select("id")
+      .eq("booking_date", formattedDate)
+      .neq("status", "CANCELLED")
+      .neq("status", "NO_SHOW")
+      .lt("start_time", endTime)
+      .gt("end_time", selectedSlot);
 
     if (conflicts && conflicts.length > 0) {
-      toast.error('That slot was just booked. Please choose another time.');
+      toast.error("That slot was just booked. Please choose another time.");
       setSaving(false);
       return;
     }
 
     // Insert Booking ke Supabase dengan menyertakan additional_fee
-    const { error } = await supabase.from('bookings').insert({
+    const { error } = await supabase.from("bookings").insert({
       customer_id: selectedCustomerId,
       service_id: selectedServiceId,
       booking_date: formattedDate,
@@ -169,35 +206,47 @@ export function QuickBookingModal({
       status,
       payment_status: paymentStatus,
       payment_method: paymentMethod,
-      source: 'ADMIN',
+      source: "ADMIN",
       notes,
       additional_fee: additionalFee,
       additional_fee_reason: additionalFeeReason,
+      is_stamp_given: false,
     });
+
+    // --- TAMBAHKAN KODE INI ---
+    // Jika opsi Redeem Royalty 30% dicentang, otomatis reset poin customer di database jadi 0
+    if (!error && isRedeemingLoyalty) {
+      await supabase
+        .from("customers")
+        .update({ loyalty_points: 0 })
+        .eq("id", selectedCustomerId);
+    }
+    // --------------------------
 
     setSaving(false);
 
     if (error) {
-      toast.error('Failed to create booking: ' + error.message);
+      toast.error("Failed to create booking: " + error.message);
     } else {
-      toast.success('Booking created successfully');
+      toast.success("Booking created successfully");
       resetForm();
       onOpenChange(false);
     }
   };
 
   const resetForm = () => {
-    setSelectedCustomerId('');
-    setSelectedServiceId('');
+    setSelectedCustomerId("");
+    setSelectedServiceId("");
     setSelectedDate(undefined);
-    setSelectedSlot('');
-    setStatus('CONFIRMED');
-    setPaymentStatus('UNPAID');
-    setPaymentMethod('Cash');
-    setNotes('');
-    setCustomerSearch('');
+    setSelectedSlot("");
+    setStatus("CONFIRMED");
+    setPaymentStatus("UNPAID");
+    setPaymentMethod("Cash");
+    setNotes("");
+    setCustomerSearch("");
     setAdditionalFee(0);
-    setAdditionalFeeReason('');
+    setAdditionalFeeReason("");
+    setIsRedeemingLoyalty(false);
   };
 
   return (
@@ -216,10 +265,12 @@ export function QuickBookingModal({
                 onClick={() => setCustomerDropdownOpen(!customerDropdownOpen)}
                 className="w-full flex items-center justify-between rounded-lg border border-input bg-background px-3 py-2.5 text-sm"
               >
-                <span className={cn(!selectedCustomerId && 'text-muted-foreground')}>
+                <span
+                  className={cn(!selectedCustomerId && "text-muted-foreground")}
+                >
                   {selectedCustomerId
                     ? customers.find((c) => c.id === selectedCustomerId)?.name
-                    : 'Search customer...'}
+                    : "Search customer..."}
                 </span>
                 <ChevronDown className="h-4 w-4 text-muted-foreground" />
               </button>
@@ -243,12 +294,14 @@ export function QuickBookingModal({
                       onClick={() => {
                         setSelectedCustomerId(c.id);
                         setCustomerDropdownOpen(false);
-                        setCustomerSearch('');
+                        setCustomerSearch("");
                       }}
                       className="w-full text-left px-3 py-2 hover:bg-accent text-sm flex items-center justify-between"
                     >
                       <span>{c.name}</span>
-                      <span className="text-xs text-muted-foreground">{c.phone}</span>
+                      <span className="text-xs text-muted-foreground">
+                        {c.phone}
+                      </span>
                     </button>
                   ))}
                   {filteredCustomers.length === 0 && (
@@ -268,7 +321,7 @@ export function QuickBookingModal({
               value={selectedServiceId}
               onValueChange={(v) => {
                 setSelectedServiceId(v);
-                setSelectedSlot('');
+                setSelectedSlot("");
               }}
             >
               <SelectTrigger>
@@ -277,7 +330,8 @@ export function QuickBookingModal({
               <SelectContent>
                 {services.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
-                    {s.name} — {formatCurrency(s.price)} ({s.duration_minutes}min)
+                    {s.name} — {formatCurrency(s.price)} ({s.duration_minutes}
+                    min)
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -289,16 +343,16 @@ export function QuickBookingModal({
             <Label>Date</Label>
             <Popover>
               <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  'w-full justify-start text-left font-normal h-10',
-                  !selectedDate && 'text-muted-foreground',
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {selectedDate ? formatDate(selectedDate) : 'Select date'}
-              </Button>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "w-full justify-start text-left font-normal h-10",
+                    !selectedDate && "text-muted-foreground",
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedDate ? formatDate(selectedDate) : "Select date"}
+                </Button>
               </PopoverTrigger>
               <PopoverContent className="w-auto p-0" align="start">
                 <Calendar
@@ -306,7 +360,7 @@ export function QuickBookingModal({
                   selected={selectedDate}
                   onSelect={(d) => {
                     setSelectedDate(d);
-                    setSelectedSlot('');
+                    setSelectedSlot("");
                   }}
                   initialFocus
                   // Prop disabled dihilangkan agar admin bisa pilih tanggal lalu
@@ -331,12 +385,12 @@ export function QuickBookingModal({
                       disabled={!slot.available}
                       onClick={() => setSelectedSlot(slot.start)}
                       className={cn(
-                        'rounded-lg border px-3 py-2 text-sm font-medium transition-all',
+                        "rounded-lg border px-3 py-2 text-sm font-medium transition-all",
                         !slot.available
-                          ? 'border-border bg-muted/50 text-muted-foreground/40 cursor-not-allowed'
+                          ? "border-border bg-muted/50 text-muted-foreground/40 cursor-not-allowed"
                           : selectedSlot === slot.start
-                            ? 'border-primary bg-primary text-primary-foreground'
-                            : 'border-border bg-background hover:border-primary hover:bg-accent',
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background hover:border-primary hover:bg-accent",
                       )}
                     >
                       {slot.start}
@@ -350,6 +404,34 @@ export function QuickBookingModal({
           {/* Price & Additional Fee Section */}
           {selectedService && (
             <div className="space-y-4">
+              {selectedCustomerId && customerPoints >= 9 && (
+                <div className="flex items-center justify-between rounded-xl border border-rose-200 bg-rose-50/50 p-3.5 dark:border-rose-900/50 dark:bg-rose-950/20">
+                  <div className="space-y-0.5">
+                    <Label className="text-rose-700 dark:text-rose-400 font-semibold cursor-pointer text-sm">
+                      Redeem Royalty 30% Discount? (Card Full: 10/10)
+                    </Label>
+                    <p className="text-[11px] text-muted-foreground">
+                      Customer has brought their physical card with 10 stamps.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={isRedeemingLoyalty}
+                    onCheckedChange={(checked) => {
+                      setIsRedeemingLoyalty(checked);
+                      if (checked && selectedService) {
+                        const discountVal = Math.round(
+                          selectedService.price * 0.3,
+                        );
+                        setAdditionalFee(-discountVal);
+                        setAdditionalFeeReason("Royalty 30% Reward (Stamp 10)");
+                      } else {
+                        setAdditionalFee(0);
+                        setAdditionalFeeReason("");
+                      }
+                    }}
+                  />
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 {/* Input Additional Fee */}
                 <div className="space-y-2">
@@ -357,8 +439,14 @@ export function QuickBookingModal({
                   <Input
                     type="number"
                     placeholder="e.g. 20000"
-                    value={additionalFee || ''}
-                    onChange={(e) => setAdditionalFee(Number(e.target.value) || 0)}
+                    value={additionalFee || ""}
+                    onChange={(e) => {
+                      // Jika sedang redeem loyalty, jangan biarkan input manual menimpa kecuali dimatikan dulu
+                      if (!isRedeemingLoyalty) {
+                        setAdditionalFee(Number(e.target.value) || 0);
+                      }
+                    }}
+                    disabled={isRedeemingLoyalty} // Dikunci jika sedang pakai diskon royalty
                   />
                 </div>
                 {/* Input Reason */}
@@ -368,27 +456,37 @@ export function QuickBookingModal({
                     placeholder="e.g. Transport, Home service..."
                     value={additionalFeeReason}
                     onChange={(e) => setAdditionalFeeReason(e.target.value)}
-                    disabled={!additionalFee || additionalFee <= 0}
+                    disabled={
+                      isRedeemingLoyalty || !additionalFee || additionalFee <= 0
+                    }
                   />
                 </div>
               </div>
 
+              {/* Order Summary UI */}
               {/* Order Summary UI */}
               <div className="rounded-lg bg-accent/50 px-4 py-3 space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
                   <span>Service Price</span>
                   <span>{formatCurrency(selectedService.price)}</span>
                 </div>
-                {additionalFee > 0 && (
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span>Additional Fee</span>
-                    <span>+{formatCurrency(additionalFee)}</span>
+                {additionalFee !== 0 && (
+                  <div className="flex justify-between text-xs text-amber-600 dark:text-amber-400">
+                    <span>
+                      {additionalFee < 0
+                        ? "Royalty Discount (30%)"
+                        : "Additional Fee"}
+                    </span>
+                    <span>
+                      {additionalFee > 0 ? "+" : ""}
+                      {formatCurrency(additionalFee)}
+                    </span>
                   </div>
                 )}
                 <div className="flex items-center justify-between pt-2 mt-2 border-t border-border">
                   <span className="text-sm font-medium">Total Price</span>
                   <span className="text-lg font-semibold text-primary">
-                    {formatCurrency(selectedService.price + (additionalFee || 0))}
+                    {formatCurrency(selectedService.price + additionalFee)}
                   </span>
                 </div>
               </div>
@@ -404,13 +502,17 @@ export function QuickBookingModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {['PENDING', 'CONFIRMED', 'ARRIVED', 'IN_PROGRESS', 'COMPLETED'].map(
-                    (s) => (
-                      <SelectItem key={s} value={s}>
-                        {s.replace('_', ' ')}
-                      </SelectItem>
-                    ),
-                  )}
+                  {[
+                    "PENDING",
+                    "CONFIRMED",
+                    "ARRIVED",
+                    "IN_PROGRESS",
+                    "COMPLETED",
+                  ].map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.replace("_", " ")}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -421,7 +523,7 @@ export function QuickBookingModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {['UNPAID', 'DP', 'PAID', 'REFUNDED'].map((s) => (
+                  {["UNPAID", "DP", "PAID", "REFUNDED"].map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>
@@ -431,7 +533,7 @@ export function QuickBookingModal({
             </div>
           </div>
 
-          {paymentStatus !== 'UNPAID' && (
+          {paymentStatus !== "UNPAID" && (
             <div className="space-y-2">
               <Label>Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -439,11 +541,13 @@ export function QuickBookingModal({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {['Cash', 'Bank Transfer', 'QRIS', 'E-wallet', 'Other'].map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
+                  {["Cash", "Bank Transfer", "QRIS", "E-wallet", "Other"].map(
+                    (m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ),
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -469,12 +573,8 @@ export function QuickBookingModal({
             >
               Cancel
             </Button>
-            <Button
-              onClick={handleSubmit}
-              disabled={saving}
-              className="flex-1"
-            >
-              {saving ? 'Creating...' : 'Create Booking'}
+            <Button onClick={handleSubmit} disabled={saving} className="flex-1">
+              {saving ? "Creating..." : "Create Booking"}
             </Button>
           </div>
         </div>

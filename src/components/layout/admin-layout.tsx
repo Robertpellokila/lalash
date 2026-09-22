@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { NavLink, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -24,8 +24,8 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useNotifications } from "@/lib/hooks";
-import { supabase } from "@/lib/supabase"; // Import supabase
-import type { Settings } from "@/lib/types"; // Import type Settings
+import { supabase } from "@/lib/supabase";
+import type { Settings, Customer } from "@/lib/types"; // Ditambahkan tipe Customer
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -62,12 +62,18 @@ interface AdminLayoutProps {
 export function AdminLayout({ children }: AdminLayoutProps) {
   const { user, signOut } = useAuth();
   const { notifications, refetch: refetchNotifications } = useNotifications();
-  const [settings, setSettings] = useState<Settings | null>(null); // State settings
+  const [settings, setSettings] = useState<Settings | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [quickBookingOpen, setQuickBookingOpen] = useState(false);
   const [addCustomerOpen, setAddCustomerOpen] = useState(false);
   const [addExpenseOpen, setAddExpenseOpen] = useState(false);
+  
+  // State untuk Pencarian Interaktif (Autocomplete Dropdown)
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<Customer[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+
   const navigate = useNavigate();
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
@@ -86,6 +92,41 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     }
 
     fetchSettings();
+  }, []);
+
+  // Real-time Search Effect untuk Dropdown Autocomplete
+  useEffect(() => {
+    const fetchSearchResults = async () => {
+      if (!searchQuery.trim() || searchQuery.length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      const { data } = await supabase
+        .from("customers")
+        .select("*")
+        .or(`name.ilike.%${searchQuery}%,phone.ilike.%${searchQuery}%`)
+        .limit(5); // Batasi 5 hasil teratas agar dropdown tetap rapi
+
+      setSearchResults(data ?? []);
+      setIsSearching(false);
+    };
+
+    const timer = setTimeout(fetchSearchResults, 300); // Debounce untuk efisiensi query
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  // Tutup dropdown jika klik di luar area search bar
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
+        setSearchResults([]);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const handleSignOut = async () => {
@@ -116,9 +157,10 @@ export function AdminLayout({ children }: AdminLayoutProps) {
     year: "numeric",
   });
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
+      setSearchResults([]);
       navigate(`/customers?search=${encodeURIComponent(searchQuery)}`);
     }
   };
@@ -251,20 +293,48 @@ export function AdminLayout({ children }: AdminLayoutProps) {
             <Menu className="h-5 w-5" />
           </button>
 
-          <form
-            onSubmit={handleSearch}
-            className="hidden md:block flex-1 max-w-md"
-          >
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search customers..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-9 bg-muted/50 border-transparent focus-visible:bg-background"
-              />
-            </div>
-          </form>
+          {/* Interactive Search Bar with Dropdown Results */}
+          <div className="hidden md:block flex-1 max-w-md relative" ref={searchRef}>
+            <form onSubmit={handleSearchSubmit}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search customers by name or phone..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 h-9 bg-muted/50 border-transparent focus-visible:bg-background"
+                />
+              </div>
+            </form>
+
+            {/* Dropdown Hasil Pencarian Interaktif */}
+            {searchQuery.trim().length >= 2 && searchResults.length > 0 && (
+              <div className="absolute z-50 mt-1.5 w-full rounded-xl border border-border bg-popover shadow-soft-lg overflow-hidden py-1">
+                <div className="px-3 py-1.5 text-[11px] font-semibold text-muted-foreground border-b border-border/50">
+                  Customers Found ({searchResults.length})
+                </div>
+                {searchResults.map((customer) => (
+                  <button
+                    key={customer.id}
+                    onClick={() => {
+                      setSearchQuery("");
+                      setSearchResults([]);
+                      navigate(`/customers?search=${encodeURIComponent(customer.name)}`);
+                    }}
+                    className="w-full text-left px-3 py-2.5 hover:bg-accent text-sm flex items-center justify-between transition-colors border-b border-border/20 last:border-0"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground">{customer.name}</p>
+                      <p className="text-xs text-muted-foreground">{customer.phone}</p>
+                    </div>
+                    <span className="text-[10px] bg-rose-50 text-rose-600 dark:bg-rose-950/40 dark:text-rose-400 font-semibold px-2 py-0.5 rounded-full">
+                      Stamps: {customer.loyalty_points ?? 0}/10
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
 
           <div className="hidden lg:block text-sm text-muted-foreground ml-auto">
             {today}

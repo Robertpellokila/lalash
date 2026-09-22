@@ -1,29 +1,34 @@
 export type BookingStatus =
-  | 'PENDING'
-  | 'CONFIRMED'
-  | 'ARRIVED'
-  | 'IN_PROGRESS'
-  | 'COMPLETED'
-  | 'CANCELLED'
-  | 'NO_SHOW';
+  | "PENDING"
+  | "CONFIRMED"
+  | "ARRIVED"
+  | "IN_PROGRESS"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW";
 
-export type PaymentStatus = 'UNPAID' | 'DP' | 'PAID' | 'REFUNDED';
+export type PaymentStatus = "UNPAID" | "DP" | "PAID" | "REFUNDED";
 
-export type BookingSource = 'ADMIN' | 'PUBLIC';
+export type BookingSource = "ADMIN" | "PUBLIC";
 
-export type PaymentMethod = 'Cash' | 'Bank Transfer' | 'QRIS' | 'E-wallet' | 'Other';
+export type PaymentMethod =
+  | "Cash"
+  | "Bank Transfer"
+  | "QRIS"
+  | "E-wallet"
+  | "Other";
 
 export type ExpenseCategory =
-  | 'Rent'
-  | 'Electricity'
-  | 'Water'
-  | 'Internet'
-  | 'Lash Supplies'
-  | 'Equipment'
-  | 'Marketing'
-  | 'Salary'
-  | 'Transportation'
-  | 'Other';
+  | "Rent"
+  | "Electricity"
+  | "Water"
+  | "Internet"
+  | "Lash Supplies"
+  | "Equipment"
+  | "Marketing"
+  | "Salary"
+  | "Transportation"
+  | "Other";
 
 export interface Service {
   id: string;
@@ -35,6 +40,7 @@ export interface Service {
   image_url: string | null;
   created_at: string;
   updated_at: string;
+  discount_price?: number | null;
 }
 
 export interface LandingContent {
@@ -66,6 +72,8 @@ export interface Customer {
   notes: string | null;
   created_at: string;
   updated_at: string;
+  loyalty_points?: number;
+  is_stamp_given?: boolean;
 }
 
 export interface Booking {
@@ -80,8 +88,9 @@ export interface Booking {
   payment_method: string | null;
   source: BookingSource;
   notes: string | null;
-  additional_fee?: number; 
+  additional_fee?: number;
   additional_fee_reason?: string | null;
+  is_stamp_given?: boolean;
   created_at: string;
   updated_at: string;
   customer?: Customer;

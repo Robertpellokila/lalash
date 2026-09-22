@@ -14,6 +14,7 @@ import {
   Pencil,
   Trash2,
   MessageCircle,
+  Check,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { PageTransition } from '@/components/shared/page-transition';
@@ -49,7 +50,7 @@ import {
   formatTime,
   generateWhatsAppUrl,
 } from '@/lib/utils';
-import type { Customer, Booking, Service } from '@/lib/types';
+import type { Customer, Booking } from '@/lib/types';
 import { AddCustomerModal } from '@/components/customers/add-customer-modal';
 import { QuickBookingModal } from '@/components/booking/quick-booking-modal';
 import { toast } from 'sonner';
@@ -233,11 +234,10 @@ export function CustomersPage() {
                 <tr>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">Name</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">Phone</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">Email</th>
+                  <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">Stamps</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">Visits</th>
                   <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">Spending</th>
                   <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">Last Visit</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">Next Booking</th>
                 </tr>
               </thead>
               <tbody>
@@ -261,16 +261,17 @@ export function CustomersPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 text-sm hidden md:table-cell">{customer.phone}</td>
-                      <td className="px-4 py-3 text-sm hidden lg:table-cell">{customer.email ?? '-'}</td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        <span className="bg-rose-100 text-rose-700 text-xs font-bold px-2 py-0.5 rounded-full">
+                          {customer.loyalty_points ?? 0}/10
+                        </span>
+                      </td>
                       <td className="px-4 py-3 text-sm text-right">{stats?.totalVisits ?? 0}</td>
                       <td className="px-4 py-3 text-sm text-right font-medium hidden sm:table-cell">
                         {formatCurrency(stats?.totalSpending ?? 0)}
                       </td>
                       <td className="px-4 py-3 text-sm hidden md:table-cell">
                         {stats?.lastVisit ? formatDate(stats.lastVisit) : '-'}
-                      </td>
-                      <td className="px-4 py-3 text-sm hidden lg:table-cell">
-                        {stats?.nextBooking ? formatDate(stats.nextBooking) : '-'}
                       </td>
                     </motion.tr>
                   );
@@ -294,9 +295,7 @@ export function CustomersPage() {
               stats={customerStats.get(selectedCustomer.id)}
               onEdit={() => setEditOpen(true)}
               onDelete={() => deleteCustomer(selectedCustomer.id)}
-              onNewBooking={() => {
-                setQuickBookingOpen(true);
-              }}
+              onNewBooking={() => setQuickBookingOpen(true)}
             />
           )}
         </SheetContent>
@@ -338,6 +337,13 @@ function CustomerDetail({
   onDelete: () => void;
   onNewBooking: () => void;
 }) {
+  const [points, setPoints] = useState(customer.loyalty_points ?? 0);
+
+  // Sync state if customer prop changes
+  useEffect(() => {
+    setPoints(customer.loyalty_points ?? 0);
+  }, [customer]);
+
   const waUrl = customer.phone
     ? generateWhatsAppUrl(customer.phone, `Halo ${customer.name}!`)
     : '#';
@@ -384,6 +390,46 @@ function CustomerDetail({
         </div>
       </div>
 
+      {/* VISUAL ROYALTY CARD */}
+      <div className="rounded-xl border border-rose-200 bg-gradient-to-br from-rose-50 to-pink-50 p-4 dark:border-rose-900/50 dark:from-rose-950/20 dark:to-pink-950/20 shadow-sm">
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-semibold flex items-center gap-2 text-rose-700 dark:text-rose-400">
+            <Sparkles className="h-4 w-4" /> Royalty Card
+          </h4>
+          <span className="text-xs font-bold bg-white dark:bg-zinc-900 px-2.5 py-1 rounded-full text-rose-600 shadow-sm">
+            {points}/10 Stamps
+          </span>
+        </div>
+        
+        <div className="grid grid-cols-5 gap-2.5 mb-1">
+          {Array.from({ length: 10 }).map((_, i) => (
+            <div
+              key={i}
+              className={cn(
+                "aspect-square rounded-full flex items-center justify-center shadow-sm transition-all duration-300",
+                i < points
+                  ? "bg-rose-500 text-white shadow-rose-200 scale-105"
+                  : "bg-white dark:bg-zinc-800 text-rose-300 border border-dashed border-rose-200"
+              )}
+            >
+              {i < points ? (
+                <Check className="h-4 w-4 stroke-[3]" />
+              ) : i === 9 ? (
+                <span className="text-[10px] font-bold">30%</span>
+              ) : (
+                <span className="text-[10px] opacity-60 font-medium">{i + 1}</span>
+              )}
+            </div>
+          ))}
+        </div>
+        
+        {points >= 10 && (
+          <p className="text-xs text-center font-bold text-rose-600 mt-4 animate-pulse">
+            🎉 Customer is eligible for 30% Discount!
+          </p>
+        )}
+      </div>
+
       {/* Stats */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-xl border border-border p-3">
@@ -399,20 +445,6 @@ function CustomerDetail({
             <span className="text-xs">Total Spending</span>
           </div>
           <p className="text-xl font-bold mt-1">{formatCurrency(stats?.totalSpending ?? 0)}</p>
-        </div>
-        <div className="rounded-xl border border-border p-3">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Clock className="h-4 w-4" />
-            <span className="text-xs">Last Visit</span>
-          </div>
-          <p className="text-sm font-medium mt-1">{stats?.lastVisit ? formatDate(stats.lastVisit) : '-'}</p>
-        </div>
-        <div className="rounded-xl border border-border p-3">
-          <div className="flex items-center gap-2 text-muted-foreground">
-            <Sparkles className="h-4 w-4" />
-            <span className="text-xs">Favorite</span>
-          </div>
-          <p className="text-sm font-medium mt-1">{stats?.favoriteService ?? '-'}</p>
         </div>
       </div>
 

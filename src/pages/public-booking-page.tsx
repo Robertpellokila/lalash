@@ -18,6 +18,7 @@ import {
   Scissors,
   Printer,
   Volume2,
+  Percent,
 } from "lucide-react";
 
 import { supabase } from "@/lib/supabase";
@@ -232,9 +233,23 @@ function ReceiptPrinter({
 
                 <div className="flex items-center justify-between border-t-2 border-dashed border-zinc-300 pt-3">
                   <span className="text-xs font-semibold">Estimated Price</span>
-                  <span className="font-serif text-base font-bold text-primary">
-                    {formatCurrency(selectedService?.price)}
-                  </span>
+                  <div className="flex flex-col items-end">
+                    {selectedService?.discount_price &&
+                    selectedService.discount_price > 0 ? (
+                      <>
+                        <span className="text-[9px] text-muted-foreground line-through leading-none mb-0.5">
+                          {formatCurrency(selectedService.price)}
+                        </span>
+                        <span className="font-serif text-base font-bold text-primary leading-none">
+                          {formatCurrency(selectedService.discount_price)}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-serif text-base font-bold text-primary">
+                        {formatCurrency(selectedService?.price)}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -818,8 +833,16 @@ export function PublicBookingPage() {
                             )}
 
                             {/* OVERLAY DURASI / BADGE */}
-                            <div className="absolute left-3 top-3 rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md">
-                              {service.duration_minutes} min
+                            <div className="absolute left-3 top-3 flex gap-2">
+                              <div className="rounded-full bg-black/60 px-3 py-1 text-[11px] font-medium text-white backdrop-blur-md">
+                                {service.duration_minutes} min
+                              </div>
+                              {service.discount_price &&
+                                service.discount_price > 0 && (
+                                  <div className="rounded-full bg-rose-500 px-3 py-1 text-[11px] font-bold text-white shadow-md flex items-center gap-1">
+                                    <Percent className="w-3 h-3" /> PROMO
+                                  </div>
+                                )}
                             </div>
 
                             {/* CHECKMARK INDICATOR */}
@@ -853,9 +876,23 @@ export function PublicBookingPage() {
                               <span className="text-xs font-medium text-muted-foreground">
                                 Estimated Price
                               </span>
-                              <span className="font-serif text-base font-bold text-primary">
-                                {formatCurrency(service.price)}
-                              </span>
+                              <div className="flex flex-col items-end">
+                                {service.discount_price &&
+                                service.discount_price > 0 ? (
+                                  <>
+                                    <span className="text-[10px] text-muted-foreground line-through leading-none mb-0.5">
+                                      {formatCurrency(service.price)}
+                                    </span>
+                                    <span className="font-serif text-base font-bold text-rose-500 leading-none">
+                                      {formatCurrency(service.discount_price)}
+                                    </span>
+                                  </>
+                                ) : (
+                                  <span className="font-serif text-base font-bold text-primary">
+                                    {formatCurrency(service.price)}
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </button>
@@ -1023,11 +1060,27 @@ export function PublicBookingPage() {
                         </span>
                       </div>
 
-                      <div className="flex justify-between text-sm">
-                        <span className="text-muted-foreground">Price</span>
-                        <span className="font-medium">
-                          {formatCurrency(selectedService?.price)}
+                      <div className="flex justify-between text-sm items-start pt-2 border-t border-dashed border-border mt-2">
+                        <span className="text-muted-foreground pt-1">
+                          Price
                         </span>
+                        <div className="flex flex-col items-end">
+                          {selectedService?.discount_price &&
+                          selectedService.discount_price > 0 ? (
+                            <>
+                              <span className="text-[10px] text-muted-foreground line-through leading-none mb-0.5">
+                                {formatCurrency(selectedService.price)}
+                              </span>
+                              <span className="font-medium text-rose-500 leading-none">
+                                {formatCurrency(selectedService.discount_price)}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-medium mt-1 leading-none">
+                              {formatCurrency(selectedService?.price)}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
