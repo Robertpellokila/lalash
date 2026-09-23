@@ -104,7 +104,7 @@ export function QuickBookingModal({
     }
   }, [selectedCustomerId, customers]);
 
-  // Fetch Existing Bookings saat tanggal dipilih (agar bisa blokir slot yang sudah penuh, baik hari ini atau masa lalu)
+  // Fetch Existing Bookings saat tanggal dipilih
   useEffect(() => {
     if (selectedDate) {
       const fetchBookingsForDate = async () => {
@@ -140,7 +140,7 @@ export function QuickBookingModal({
 
   const selectedService = services.find((s) => s.id === selectedServiceId);
 
-  // Hitung ketersediaan slot (isAdmin = true agar tanggal lampau tetap bisa dicek)
+  // Hitung ketersediaan slot
   const availableSlots =
     selectedService && selectedDate
       ? calculateAvailableSlots(
@@ -148,9 +148,9 @@ export function QuickBookingModal({
           selectedService.duration_minutes,
           businessHours,
           blockedDates,
-          existingBookings, // Kirim booking yang ada di tanggal tsb
-          0, // minNoticeHours
-          true, // isAdmin flag = true
+          existingBookings,
+          0,
+          true,
         )
       : [];
 
@@ -173,7 +173,10 @@ export function QuickBookingModal({
 
     setSaving(true);
     const service = services.find((s) => s.id === selectedServiceId);
-    if (!service) return;
+    if (!service) {
+      setSaving(false);
+      return;
+    }
 
     const endTime = minutesToTime(
       timeToMinutes(selectedSlot) + service.duration_minutes,
@@ -196,42 +199,66 @@ export function QuickBookingModal({
       return;
     }
 
-    // Insert Booking ke Supabase dengan menyertakan additional_fee
-    const { error } = await supabase.from("bookings").insert({
-      customer_id: selectedCustomerId,
-      service_id: selectedServiceId,
-      booking_date: formattedDate,
-      start_time: selectedSlot,
-      end_time: endTime,
-      status,
-      payment_status: paymentStatus,
-      payment_method: paymentMethod,
-      source: "ADMIN",
-      notes,
-      additional_fee: additionalFee,
-      additional_fee_reason: additionalFeeReason,
-      is_stamp_given: false,
-    });
+    // 1. Insert Booking ke Supabase dan ambil datanya untuk relasi pembayaran
+    const { data: newBooking, error: bookingError } = await supabase
+      .from("bookings")
+      .insert({
+        customer_id: selectedCustomerId,
+        service_id: selectedServiceId,
+        booking_date: formattedDate,
+        start_time: selectedSlot,
+        end_time: endTime,
+        status,
+        payment_status: paymentStatus,
+        payment_method: paymentMethod,
+        source: "ADMIN",
+        notes,
+        additional_fee: additionalFee,
+        additional_fee_reason: additionalFeeReason,
+        is_stamp_given: false,
+      })
+      .select()
+      .single();
 
-    // --- TAMBAHKAN KODE INI ---
-    // Jika opsi Redeem Royalty 30% dicentang, otomatis reset poin customer di database jadi 0
-    if (!error && isRedeemingLoyalty) {
+    if (bookingError) {
+      setSaving(false);
+      toast.error("Failed to create booking: " + bookingError.message);
+      return;
+    }
+
+    // 2. Jika status pembayaran PAID atau DP, catat juga ke tabel payments
+    if (newBooking && paymentStatus !== "UNPAID") {
+      const activePrice =
+        service.discount_price && service.discount_price > 0
+          ? service.discount_price
+          : service.price;
+      const finalTotalPrice = activePrice + additionalFee;
+
+      const paidAmount =
+        paymentStatus === "PAID"
+          ? finalTotalPrice
+          : Math.round(finalTotalPrice * 0.5);
+
+      await supabase.from("payments").insert({
+        booking_id: newBooking.id,
+        amount: paidAmount,
+        payment_method: paymentMethod,
+        payment_date: formattedDate,
+      });
+    }
+
+    // 3. Jika opsi Redeem Royalty 30% dicentang, otomatis reset poin customer jadi 0
+    if (isRedeemingLoyalty) {
       await supabase
         .from("customers")
         .update({ loyalty_points: 0 })
         .eq("id", selectedCustomerId);
     }
-    // --------------------------
 
     setSaving(false);
-
-    if (error) {
-      toast.error("Failed to create booking: " + error.message);
-    } else {
-      toast.success("Booking created successfully");
-      resetForm();
-      onOpenChange(false);
-    }
+    toast.success("Booking created successfully & payment recorded!");
+    resetForm();
+    onOpenChange(false);
   };
 
   const resetForm = () => {
@@ -363,7 +390,6 @@ export function QuickBookingModal({
                     setSelectedSlot("");
                   }}
                   initialFocus
-                  // Prop disabled dihilangkan agar admin bisa pilih tanggal lalu
                 />
               </PopoverContent>
             </Popover>
@@ -411,7 +437,7 @@ export function QuickBookingModal({
                       Redeem Royalty 30% Discount? (Card Full: 10/10)
                     </Label>
                     <p className="text-[11px] text-muted-foreground">
-                      Customer has brought their physical card with 10 stamps.
+                      Customer has brought their physical card with 9 stamps.
                     </p>
                   </div>
                   <Switch
@@ -433,7 +459,6 @@ export function QuickBookingModal({
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
-                {/* Input Additional Fee */}
                 <div className="space-y-2">
                   <Label>Additional Fee (Optional)</Label>
                   <Input
@@ -441,15 +466,13 @@ export function QuickBookingModal({
                     placeholder="e.g. 20000"
                     value={additionalFee || ""}
                     onChange={(e) => {
-                      // Jika sedang redeem loyalty, jangan biarkan input manual menimpa kecuali dimatikan dulu
                       if (!isRedeemingLoyalty) {
                         setAdditionalFee(Number(e.target.value) || 0);
                       }
                     }}
-                    disabled={isRedeemingLoyalty} // Dikunci jika sedang pakai diskon royalty
+                    disabled={isRedeemingLoyalty}
                   />
                 </div>
-                {/* Input Reason */}
                 <div className="space-y-2">
                   <Label>Fee Reason</Label>
                   <Input
@@ -463,7 +486,6 @@ export function QuickBookingModal({
                 </div>
               </div>
 
-              {/* Order Summary UI */}
               {/* Order Summary UI */}
               <div className="rounded-lg bg-accent/50 px-4 py-3 space-y-1">
                 <div className="flex justify-between text-xs text-muted-foreground">
